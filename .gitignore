@@ -30,23 +30,22 @@ go.work
 go.work.sum
 
 # env file
-*.env
+*/.env
+
+# .DS_Store
+*/.DS_Store
 
 # Editor/IDE
 # .idea/
 # .vscode/
 
 # Quasar module
-.DS_Store
 .Thumbs.db
 *.sublime*
 .idea/
 debug.log
-
 ui/.vscode/
-
 node_modules/
 yarn.lock
 package-lock.json
-
 .eslintcache
