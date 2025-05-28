@@ -7,9 +7,9 @@ Ce projet est une application web complète composée de :
 
 ## 📁 Structure du projet
 
-Prometheus/
-├── frontend/ # Interface utilisateur (SPA avec Quasar)
-└── backend/ # Serveur API en Go
+Prometheus
+    frontend/ # Interface utilisateur (SPA avec Quasar)
+    backend/  # Serveur API en Go
 
 
 ---
@@ -33,7 +33,15 @@ npm install
 quasar dev
 ```
 
-### 🔸 2. Lancer le **frontend**
+### 🔸 2. Lancer le **backend**
 
+Go run
+```bash
 cd backend
 go run main.go
+```
+
+Build
+```bash
+GOOS=linux GOARCH=amd64 go build -o prometheus-api
+```
