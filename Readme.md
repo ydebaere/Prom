@@ -17,10 +17,10 @@ Prometheus
 
 ### 🔸 1. Prérequis
 
-- [Node.js](https://nodejs.org/) (v16+ recommandé)
+- [Node.js](https://nodejs.org/)
 - [Quasar CLI](https://quasar.dev/start/pick-quasar-flavour)
-- [Go](https://golang.org/doc/install) (v1.18+)
-- Un fichier `.env` pour chaque environnement (voir ci-dessous)
+- [Go](https://golang.org/doc/install)
+- Un fichier `.env` pour chaque environnement
 
 ---
 
