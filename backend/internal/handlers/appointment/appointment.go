@@ -503,13 +503,18 @@ func FetchAppointments(w http.ResponseWriter, r *http.Request) {
 // Cette fonction récupère un rendez-vous spécifique à partir de son ID,
 // puis enrichit les données avec les noms des utilisateurs et de l'école.
 func FetchAppointment(w http.ResponseWriter, r *http.Request) {
+	// Récupération du paramètre appointmentID depuis l'URL
 	appointmentID := r.URL.Query().Get("appointmentID")
+
+	// Requête SQL pour récupérer le rendez-vous avec l'ID spécifié
 	query := `
 	SELECT id, host, guest, school, resource, start_time, end_time, title, token, status
 	FROM appointment
 	WHERE id = $1`
 
 	var appt Appointment
+
+	// Exécution de la requête pour obtenir le rendez-vous
 	err := database.GetConn().QueryRow(query, appointmentID).Scan(
 		&appt.ID,
 		&appt.Host,
@@ -527,25 +532,34 @@ func FetchAppointment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Récupérer les noms associés
+	// Récupération du nom complet de l'hôte
 	var hostFirstName, hostLastName string
-	err = database.GetConn().QueryRow(`SELECT given_name, family_name FROM usr WHERE id = $1`, appt.Host).Scan(&hostFirstName, &hostLastName)
+	err = database.GetConn().QueryRow(
+		`SELECT given_name, family_name FROM usr WHERE id = $1`, appt.Host,
+	).Scan(&hostFirstName, &hostLastName)
 	if err == nil {
 		appt.Host = hostFirstName + " " + hostLastName
 	}
 
+	// Récupération du nom complet de l'invité
 	var guestFirstName, guestLastName string
-	err = database.GetConn().QueryRow(`SELECT given_name, family_name FROM usr WHERE id = $1`, appt.Guest).Scan(&guestFirstName, &guestLastName)
+	err = database.GetConn().QueryRow(
+		`SELECT given_name, family_name FROM usr WHERE id = $1`, appt.Guest,
+	).Scan(&guestFirstName, &guestLastName)
 	if err == nil {
 		appt.Guest = guestFirstName + " " + guestLastName
 	}
 
+	// Récupération du nom de l'école
 	var schoolName string
-	err = database.GetConn().QueryRow(`SELECT name FROM school WHERE id = $1`, appt.School).Scan(&schoolName)
+	err = database.GetConn().QueryRow(
+		`SELECT name FROM school WHERE id = $1`, appt.School,
+	).Scan(&schoolName)
 	if err == nil {
 		appt.School = schoolName
 	}
 
+	// Envoi de la réponse JSON avec le rendez-vous enrichi
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(appt)
 }
@@ -565,17 +579,20 @@ func CreateAppointment(w http.ResponseWriter, r *http.Request) {
 		EndTime   int64  `json:"end_time"`
 	}
 
+	// Décodage du corps de la requête en JSON dans la structure AppointmentPayload
 	var payload AppointmentPayload
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		http.Error(w, "Échec du décodage du corps de la requête : "+err.Error(), http.StatusBadRequest)
 		return
 	}
 
+	// Conversion des timestamps en format date-heure
 	startTime := time.Unix(payload.StartTime, 0).Format("2006-01-02 15:04:05")
 	endTime := time.Unix(payload.EndTime, 0).Format("2006-01-02 15:04:05")
 	guestEmail := payload.Guest
 	schoolID := payload.School
 
+	// Choix de l'URL pour la validation de l'e-mail
 	var emailUrl string
 	if strings.Contains(r.Host, "localhost") {
 		emailUrl = "http://localhost:9000/validate-appointment?"
@@ -583,6 +600,7 @@ func CreateAppointment(w http.ResponseWriter, r *http.Request) {
 		emailUrl = "https://prometheus.hainaut-promsoc.be/validate-appointment?"
 	}
 
+	// Vérification de l'existence de l'utilisateur invité
 	var userExists bool
 	var userID int
 	userExistsQuery := `
@@ -596,6 +614,7 @@ func CreateAppointment(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Échec de la requête à la base de données : "+err.Error(), http.StatusInternalServerError)
 		return
 	}
+	// Si l'utilisateur existe, on récupère son ID
 	if userExists {
 		userIDQuery := `
 		SELECT id 
@@ -609,6 +628,8 @@ func CreateAppointment(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else {
+		// Si l'utilisateur n'existe pas, on le crée
+		// On extrait le prénom et le nom de famille à partir de l'e-mail
 		guestGivenName := ""
 		guestFamilyName := ""
 		var parts []string
@@ -624,31 +645,36 @@ func CreateAppointment(w http.ResponseWriter, r *http.Request) {
 			guestGivenName = guestEmail
 			guestFamilyName = ""
 		}
+		// Insertion de l'utilisateur dans la base de données avec RETURNING pour obtenir l'ID directement
 		userQuery := `
 		INSERT INTO usr 
 		(unique_name, given_name, family_name) 
-		VALUES ($1, $2, $3)`
-		_, err = database.GetConn().Exec(userQuery, guestEmail, guestGivenName, guestFamilyName)
+		VALUES ($1, $2, $3)
+		RETURNING id`
+		err = database.GetConn().QueryRow(userQuery, guestEmail, guestGivenName, guestFamilyName).Scan(&userID)
 		if err != nil {
 			http.Error(w, "Échec de l'insertion des données dans la base de données : "+err.Error(), http.StatusInternalServerError)
 			return
 		}
-		userIDQuery := `
-		SELECT id 
-		FROM usr 
-		WHERE unique_name = $1 
-		ORDER BY id 
-		DESC LIMIT 1`
-		err = database.GetConn().QueryRow(userIDQuery, guestEmail).Scan(&userID)
+		// Recupération de l'ID de la ressource
+		resourceIDQuery := `
+		SELECT id
+		FROM resource
+		WHERE school = $1
+		AND description LIKE '%Invité%'
+		OR name LIKE '%Invité'`
+		var resourceID int
+		err = database.GetConn().QueryRow(resourceIDQuery, payload.School).Scan(&resourceID)
 		if err != nil {
-			http.Error(w, "Échec de la requête à la base de données : "+err.Error(), http.StatusInternalServerError)
+			http.Error(w, "Échec de la récupération de l'ID de la ressource : "+err.Error(), http.StatusInternalServerError)
 			return
 		}
-		userRoleQuery := `
+		// Insertion du rôle de l'utilisateur dans la table user_school_resource
+		userResourceQuery := `
 		INSERT INTO 
 		user_school_resource (user_id, school_id, resource_id) 
 		VALUES ($1, $2, $3)`
-		_, err = database.GetConn().Exec(userRoleQuery, userID, schoolID, 4)
+		_, err = database.GetConn().Exec(userResourceQuery, userID, schoolID, resourceID)
 		if err != nil {
 			http.Error(w, "Échec de l'insertion des données dans la base de données : "+err.Error(), http.StatusInternalServerError)
 			return
@@ -667,7 +693,9 @@ func CreateAppointment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Si l'utilisateur n'a pas de rendez-vous en attente de confirmation
 	if CheckAppointmentsStatus(guestID) {
+		// Début de transaction
 		tx, err := database.GetConn().Begin()
 		if err != nil {
 			http.Error(w, "Échec du démarrage de la transaction : "+err.Error(), http.StatusInternalServerError)
@@ -697,12 +725,14 @@ func CreateAppointment(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
+		// Génération d'un token unique pour la validation
 		token, err := service.GenerateUniqueToken()
 		if err != nil {
 			http.Error(w, "Échec de la génération du token unique : "+err.Error(), http.StatusInternalServerError)
 			return
 		}
 
+		// Insertion du rendez-vous et récupération des données enrichies
 		insertQuery := `
 		INSERT INTO appointment (school, host, guest, start_time, end_time, resource, title, token) 
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -731,25 +761,28 @@ func CreateAppointment(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		resp := map[string]interface{}{
-			"id":          appointmentID,
-			"host":        hostUniqueName,
-			"guest":       guestEmail,
-			"school":      payload.School,
-			"school_name": school_name,
-			"resource":    payload.Resource,
-			"title":       payload.Title,
-			"start_time":  payload.StartTime,
-			"end_time":    payload.EndTime,
-			"token":       token,
-			"date":        payload.Date,
+		appt := Appointment{
+			ID:        appointmentID,
+			Host:      hostUniqueName,
+			Guest:     guestEmail,
+			School:    school_name,
+			Resource:  fmt.Sprintf("%v", payload.Resource),
+			StartTime: time.Unix(payload.StartTime, 0),
+			EndTime:   time.Unix(payload.EndTime, 0),
+			Title:     payload.Title,
+			Status:    false,
+			Token:     token,
 		}
+		resp := appt
 		escapedToken := url.QueryEscape(fmt.Sprintf("%v", token))
 		fullURL := fmt.Sprintf("%stoken=%s", emailUrl, escapedToken)
 
+		// Envoi de la réponse JSON avec le rendez-vous créé
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(resp)
 
+		// Envoi de l'e-mail de confirmation
+		// Corps de l'e-mail HTML
 		body := fmt.Sprintf(`
 		<!DOCTYPE html>
 		<html lang="fr">
@@ -798,10 +831,12 @@ func CreateAppointment(w http.ResponseWriter, r *http.Request) {
 			hostUniqueName,
 			fullURL,
 		)
+		// Titre de l'e-mail
 		mailTitle := "Demande de confirmation de rendez-vous"
 
 		service.SendEmail(config.LoadConfig(), guestEmail, mailTitle, body)
 	} else {
+		// Conflit si un rendez-vous non confirmé existe déjà
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusConflict)
 		json.NewEncoder(w).Encode(map[string]interface{}{"message": "Des rendez-vous non confirmés existent pour cet utilisateur"})

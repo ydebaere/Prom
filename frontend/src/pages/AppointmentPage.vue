@@ -495,7 +495,9 @@ async function confirmEmail() {
   }
 
   const newDate = new Date(Date.now());
-  if (new Date(date.value) <= newDate) {
+  // Vérifie que la date/heure choisie est au moins 2 heures après maintenant
+  const selectedDateTime = new Date(`${date.value.replace(/\//g, "-")}T${timing.value}:00`);
+  if (selectedDateTime.getTime() < newDate.getTime() + 2 * 60 * 60 * 1000) {
     $q.notify({
       type: "negative",
       message: "Veuillez sélectionner une date ultérieure",
