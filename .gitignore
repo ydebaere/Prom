@@ -2,6 +2,7 @@
 # https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
 #
 # Environment files
+commandes.txt
 backend/.env
 backend/secret-prometheus.txt
 backend/EI.txt
