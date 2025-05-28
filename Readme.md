@@ -1,6 +1,6 @@
 # 📅 Prometheus
 
-> **Epreuve intégrée – Bachelier en Informatique de Gestion**
+> **Projet de fin d'études – Bachelier en Informatique de Gestion**
 
 ## 🧩 Présentation
 
@@ -22,11 +22,12 @@
 
 ## 🗂️ Architecture du projet
 
-**prometheus/**
-**├── frontend/ # Application Vue 3 avec Quasar**
-**├── backend/ # Serveur HTTP Go + API REST**
-**├── .env # Fichier de configuration (non versionné)**
-
+```
+project/
+├── frontend/   # Application Vue 3 avec Quasar
+├── backend/    # Serveur HTTP Go + API REST
+├── .env        # Fichier de configuration (non versionné)
+```
 
 ### Technologies clés
 
@@ -56,61 +57,72 @@ cd frontend
 npm install
 ```
 
-Démarrage en mode développement :
+**Démarrage en mode développement :**
+
 ```bash
 quasar dev
 ```
 
-Build production :
+**Build production :**
+
 ```bash
-npm run build
+quasar build
 ```
+
+---
 
 ### 3. Backend (Go)
 
-Lancement en mode développement :
+**Lancement en mode développement :**
+
 ```bash
 cd backend
 go run main.go
 ```
 
-Compilation pour production :
+**Compilation pour production :**
+
 ```bash
 GOOS=linux GOARCH=amd64 go build -o prometheus-api
 ```
 
-Redémarrage du service (si systemd) :
+**Redémarrage du service (si installé via systemd) :**
+
 ```bash
 sudo systemctl restart prometheus-api.service
 ```
 
+---
+
 ## 🔐 Configuration (.env)
 
-Les informations sensibles (clés, tokens, connexions) sont stockées dans un fichier .env (non versionné).
+Les informations sensibles (clés, tokens, connexions) sont stockées dans un fichier `.env` (non versionné).
 
-Exemple de contenu :
+**Exemple de contenu :**
+
+```env
 JWT_SECRET=your_secret_key
 DATABASE_URL=postgres://user:password@host:port/dbname?sslmode=disable
+```
+
+---
 
 ## 🎓 Contexte académique
 
-Ce projet a été réalisé dans le cadre de mon travail de fin d’études en Bachelier en Informatique de Gestion.
+Ce projet a été réalisé dans le cadre de mon **travail de fin d’études** en **Bachelier en Informatique de Gestion**.  
 Il illustre mes compétences dans les domaines suivants :
 
-    Développement Fullstack (Vue + Go)
+- Développement **Fullstack (Vue + Go)**
+- Conception et architecture logicielle
+- Gestion de projet et déploiement
+- Sécurité des API et authentification
+- Utilisation de conteneurs et configuration système
 
-    Conception et architecture logicielle
+---
 
-    Gestion de projet et déploiement
+## 📌 À venir (Roadmap)
 
-    Sécurité des API et authentification
+- 📆 Synchronisation avec des calendriers externes
 
-    Utilisation de conteneurs et configuration système
-
-## 📌 Possible améliorations (Roadmap)
-
-    📆 Synchronisation avec des calendriers externes (.ics)
-
-
-
+---
 
