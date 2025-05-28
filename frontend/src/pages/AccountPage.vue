@@ -748,29 +748,29 @@ async function deleteAppointments(appointment) {
   }
 }
 
-// async function updateAppointments(appointment) {
-//   console.log("Updating appointment:", appointment);
-//   const updatedData = {
-//     id: appointment.id,
-//     date: appointment.date,
-//     start_time: appointment.start_time,
-//     end_time: appointment.end_time,
-//   };
-//   try {
-//     await updateAppointment(updatedData);
-//     $q.notify({
-//       type: "positive",
-//       message: "Rendez-vous modifié avec succès",
-//     });
-//     loadUserAppointments();
-//   } catch (error) {
-//     console.error("Failed to update appointment:", error);
-//     $q.notify({
-//       type: "negative",
-//       message: "Erreur lors de la modification du rendez-vous",
-//     });
-//   }
-// }
+async function updateAppointments(appointment) {
+  console.log("Updating appointment:", appointment);
+  const updatedData = {
+    id: appointment.id,
+    date: appointment.date,
+    start_time: appointment.start_time,
+    end_time: appointment.end_time,
+  };
+  try {
+    await updateAppointment(updatedData);
+    $q.notify({
+      type: "positive",
+      message: "Rendez-vous modifié avec succès",
+    });
+    loadUserAppointments();
+  } catch (error) {
+    console.error("Failed to update appointment:", error);
+    $q.notify({
+      type: "negative",
+      message: "Erreur lors de la modification du rendez-vous",
+    });
+  }
+}
 
 function viewDetails(row) {
   $q.dialog({
