@@ -50,3 +50,8 @@ Build ::
 ```bash
 GOOS=linux GOARCH=amd64 go build -o prometheus-api
 ```
+
+Relancer service backend ::
+```bash
+sudo systemctl restart prometheus-api.service
+```

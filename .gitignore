@@ -2,7 +2,6 @@
 # https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
 #
 # Environment files
-commandes.txt
 backend/.env
 backend/secret-prometheus.txt
 backend/EI.txt
@@ -31,10 +30,10 @@ go.work
 go.work.sum
 
 # env file
-*/.env
+**/.env
 
 # .DS_Store
-*/.DS_Store
+**/.DS_Store
 
 # Editor/IDE
 # .idea/
