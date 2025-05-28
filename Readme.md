@@ -1,75 +1,115 @@
 # 📅 Appointment Booking App
 
-## 🧩 Présentation du projet
+> **Projet de fin d'études – Bachelier en Informatique de Gestion**
 
-Cette application permet la gestion de rendez-vous entre des utilisateurs (par exemple, élèves et écoles). Elle permet l’authentification, la réservation, et la gestion des disponibilités via une interface utilisateur moderne basée sur Quasar, avec un backend robuste en Go.
+## 🧩 Présentation
+
+**Appointment Booking App** est une application web complète destinée à faciliter la prise de rendez-vous entre différentes parties (ex. : élèves et écoles). Elle propose une gestion sécurisée des utilisateurs, des disponibilités et des réservations via une interface moderne développée avec **Quasar (Vue 3)**, et un serveur backend performant écrit en **Go**.
+
+---
 
 ## 🚀 Fonctionnalités principales
 
-- Authentification JWT
-- Gestion des utilisateurs et des rôles
-- Création et consultation de rendez-vous
-- Gestion des indisponibilités
-- Interface responsive avec Quasar Framework
-- API REST sécurisée
-- Stockage des données avec PostgreSQL
+- 🔐 Authentification sécurisée par **JWT**
+- 👥 Gestion des utilisateurs avec rôles
+- 📅 Création, visualisation et suppression de rendez-vous
+- ⛔ Gestion des **indisponibilités**
+- 📱 Interface responsive (mobile/desktop) avec **Quasar Framework**
+- 🛠️ API REST sécurisée et structurée
+- 🗃️ Persistance des données avec **PostgreSQL**
 
-## 🗂 Structure du projet
+---
 
-- **Frontend (Quasar)** : Application SPA
-- **Backend (Go)** : Serveur HTTP avec routes REST
-- **Échange de données** : Format JSON
+## 🗂️ Architecture du projet
+
+project/
+├── frontend/ # Application Vue 3 avec Quasar
+├── backend/ # Serveur HTTP Go + API REST
+├── .env # Fichier de configuration (non versionné)
 
 
-## 🛠️ Installation / Build
+### Technologies clés
 
+| Frontend         | Backend      | Base de données |
+|------------------|--------------|------------------|
+| Quasar (Vue 3)   | Go (Golang)  | PostgreSQL       |
 
-### 🔸 1. Dépendances
+---
 
-- Quasar CLI v2.x (Vue 3)
-- Go
-- Node.js 
+## ⚙️ Installation et lancement
 
-### 🔸 2. **frontend**
+### 1. Prérequis
 
-Dev ::
+- Node.js (v16+ recommandé)
+- Go (v1.18+)
+- Quasar CLI (`npm install -g @quasar/cli`)
+- PostgreSQL
+
+---
+
+### 2. Frontend (Quasar)
+
+**Installation des dépendances :**
+
 ```bash
 cd frontend
 npm install
+```
+
+Démarrage en mode développement :
+```bash
 quasar dev
 ```
 
-Build ::
+Build production :
 ```bash
 npm run build
 ```
 
-### 🔸 3. **backend**
+### 3. Backend (Go)
 
-Dev ::
+Lancement en mode développement :
 ```bash
 cd backend
 go run main.go
 ```
 
-Build ::
+Compilation pour production :
 ```bash
 GOOS=linux GOARCH=amd64 go build -o prometheus-api
 ```
 
-Relancer service backend ::
+Redémarrage du service (si systemd) :
 ```bash
 sudo systemctl restart prometheus-api.service
 ```
 
-## 🔐 Utilisation des fichiers `.env`
+🔐 Configuration (.env)
 
-Les clés, tokens et paramètres sensibles sont gérés via des fichiers `.env` (non versionnés).  
-Exemple de contenu possible :
+Les informations sensibles (clés, tokens, connexions) sont stockées dans un fichier .env (non versionné).
 
+Exemple de contenu :
 JWT_SECRET=your_secret_key
 DATABASE_URL=postgres://user:password@host:port/dbname?sslmode=disable
 
+🎓 Contexte académique
+
+Ce projet a été réalisé dans le cadre de mon travail de fin d’études en Bachelier en Informatique de Gestion.
+Il illustre mes compétences dans les domaines suivants :
+
+    Développement Fullstack (Vue + Go)
+
+    Conception et architecture logicielle
+
+    Gestion de projet et déploiement
+
+    Sécurité des API et authentification
+
+    Utilisation de conteneurs et configuration système
+
+📌 Possible améliorations (Roadmap)
+
+    📆 Synchronisation avec des calendriers externes (.ics)
 
 
 
