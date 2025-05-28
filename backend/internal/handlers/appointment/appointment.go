@@ -15,13 +15,13 @@ import (
 	"backend/internal/handlers/service"
 )
 
-// Représente un créneau horaire avec heure de début et de fin
+// Structure d'un créneau horaire
 type TimeSlot struct {
 	Start time.Time `json:"start"`
 	End   time.Time `json:"end"`
 }
 
-// Représente un rendez-vous
+// Structure d'un rendez-vous
 type Appointment struct {
 	ID        int       `json:"id,omitempty"`
 	Host      string    `json:"host,omitempty"`
@@ -35,74 +35,120 @@ type Appointment struct {
 	Token     string    `json:"token,omitempty"`
 }
 
-// Soustraire des créneaux horaires
+// La fonction prend une liste de créneaux `base` et en retire les créneaux présents dans `removes`.
+// Elle retourne une nouvelle liste contenant les créneaux de base, moins ceux à retirer.
 func subtractSlots(base []TimeSlot, removes []TimeSlot) []TimeSlot {
-	var result []TimeSlot
+	var result []TimeSlot // Résultat final des créneaux après soustraction
 
+	// Parcours de chaque créneau de base
 	for _, slot := range base {
+		// On commence par considérer que le créneau complet est valide
 		subtracted := []TimeSlot{slot}
 
+		// On va successivement retirer tous les créneaux de la liste removes
 		for _, rem := range removes {
 			var temp []TimeSlot
+
+			// Pour chaque créneau encore valide, on applique la soustraction du créneau à retirer
 			for _, s := range subtracted {
+				// La fonction subtractTwo renvoie 0, 1 ou 2 créneaux restants après soustraction
 				temp = append(temp, subtractTwo(s, rem)...)
 			}
+
+			// On remplace les créneaux restants par ceux générés après la soustraction
 			subtracted = temp
 		}
+
+		// On ajoute tous les créneaux restants (non supprimés) à la liste finale
 		result = append(result, subtracted...)
 	}
 
 	return result
 }
 
-// Soustraire deux créneaux horaires
+// La fonction retourne la partie du créneau `a` qui ne chevauche pas le créneau `b`.
+// Si `b` ne recouvre pas `a`, elle retourne `a` tel quel.
+// Si `b` coupe `a`, elle retourne 1 ou 2 créneaux restants après suppression de l'intersection.
 func subtractTwo(a, b TimeSlot) []TimeSlot {
+	// Si les créneaux ne se chevauchent pas (b est avant ou après a)
 	if b.End.Before(a.Start) || b.Start.After(a.End) {
-		return []TimeSlot{a}
+		return []TimeSlot{a} // Aucun chevauchement, donc on retourne `a` tel quel
 	}
 
 	var slots []TimeSlot
+
+	// Si le début de `b` est après celui de `a`, il y a une première portion à conserver
 	if b.Start.After(a.Start) {
-		slots = append(slots, TimeSlot{Start: a.Start, End: b.Start})
+		slots = append(slots, TimeSlot{
+			Start: a.Start,
+			End:   b.Start,
+		})
 	}
+
+	// Si la fin de `b` est avant celle de `a`, il y a une seconde portion à conserver
 	if b.End.Before(a.End) {
-		slots = append(slots, TimeSlot{Start: b.End, End: a.End})
+		slots = append(slots, TimeSlot{
+			Start: b.End,
+			End:   a.End,
+		})
 	}
+
+	// Retourne les créneaux restants (0, 1 ou 2)
 	return slots
 }
 
 // Générer des créneaux horaires à partir de plages horaires
+// à partir d'une liste de plages `ranges` (début/fin) et d'une durée cible,
+// cette fonction découpe chaque plage en créneaux de durée fixe.
 func generateSlotsFromRanges(ranges []TimeSlot, duration time.Duration) []TimeSlot {
-	var slots []TimeSlot
+	var slots []TimeSlot // Résultat : liste de tous les créneaux générés
+
+	// Parcourt chaque plage horaire fournie
 	for _, r := range ranges {
 		start := r.Start
+
+		// Tant que la fin du créneau généré est avant ou égale à la fin de la plage
 		for start.Add(duration).Before(r.End) || start.Add(duration).Equal(r.End) {
 			end := start.Add(duration)
-			slots = append(slots, TimeSlot{Start: start, End: end})
+
+			// Ajoute le créneau généré à la liste
+			slots = append(slots, TimeSlot{
+				Start: start,
+				End:   end,
+			})
+
+			// Avance le curseur de début pour générer le prochain créneau
 			start = end
 		}
 	}
+
 	return slots
 }
 
-// Obtenir les créneaux disponibles
+// Cette fonction récupère les créneaux horaires disponibles pour un utilisateur donné à une date précise.
+// Elle prend en compte les horaires de travail et les indisponibilités de l'utilisateur,
+// puis découpe les créneaux disponibles en tranches de durée fixe.
 func GetAvailableSlots(w http.ResponseWriter, r *http.Request) {
+	// Récupération des paramètres de requête : userID, date et durée
 	userID := r.URL.Query().Get("userID")
 	dateStr := r.URL.Query().Get("date")
 	durationStr := r.URL.Query().Get("duration")
 
+	// Conversion de la durée en entier (minutes)
 	duration, err := strconv.Atoi(durationStr)
 	if err != nil || duration <= 0 {
 		http.Error(w, "Paramètre de durée invalide", http.StatusBadRequest)
 		return
 	}
 
+	// Parsing de la date au format "YYYY-MM-DD"
 	date, err := time.Parse("2006-01-02", dateStr)
 	if err != nil {
 		http.Error(w, "Format de date invalide. Format attendu : YYYY-MM-DD", http.StatusBadRequest)
 		return
 	}
 
+	// Conversion du jour de la semaine en français (nom des jours dans la BDD)
 	dayOfWeekMap := map[string]string{
 		"monday":    "lundi",
 		"tuesday":   "mardi",
@@ -115,7 +161,7 @@ func GetAvailableSlots(w http.ResponseWriter, r *http.Request) {
 	dayOfWeek := strings.ToLower(date.Weekday().String())
 	dayOfWeek = dayOfWeekMap[dayOfWeek]
 
-	// 1. Horaires
+	// 1. Récupération des horaires de travail
 	queryWork := `SELECT start_time, end_time FROM work_schedule WHERE user_id = $1 AND day_of_week = $2`
 	rowsWork, err := database.GetConn().Query(queryWork, userID, dayOfWeek)
 	if err != nil {
@@ -131,12 +177,13 @@ func GetAvailableSlots(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Erreur lors de la lecture des horaires de travail : "+err.Error(), http.StatusInternalServerError)
 			return
 		}
+		// Associe les heures à la date fournie (pour comparaison correcte)
 		start = time.Date(date.Year(), date.Month(), date.Day(), start.Hour(), start.Minute(), 0, 0, time.Local)
 		end = time.Date(date.Year(), date.Month(), date.Day(), end.Hour(), end.Minute(), 0, 0, time.Local)
 		workSlots = append(workSlots, TimeSlot{Start: start, End: end})
 	}
 
-	// 2. Indispos
+	// 2. Récupération des indisponibilités
 	queryUnavail := `SELECT start_time, end_time FROM unavailabilities WHERE user_id = $1 AND date = $2`
 	rowsUnavail, err := database.GetConn().Query(queryUnavail, userID, dateStr)
 	if err != nil {
@@ -152,18 +199,19 @@ func GetAvailableSlots(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Erreur lors de la lecture des indisponibilités : "+err.Error(), http.StatusInternalServerError)
 			return
 		}
+		// Associe aussi les heures à la date
 		start = time.Date(date.Year(), date.Month(), date.Day(), start.Hour(), start.Minute(), 0, 0, time.Local)
 		end = time.Date(date.Year(), date.Month(), date.Day(), end.Hour(), end.Minute(), 0, 0, time.Local)
 		unavailSlots = append(unavailSlots, TimeSlot{Start: start, End: end})
 	}
 
-	// 3. Calcul des créneaux nets
+	// 3. Calcul des créneaux disponibles en retirant les indisponibilités des horaires de travail
 	availableRanges := subtractSlots(workSlots, unavailSlots)
 
-	// 4. Découpage par tranches de durée
+	// 4. Découpe les plages disponibles en créneaux de durée fixe
 	finalSlots := generateSlotsFromRanges(availableRanges, time.Duration(duration)*time.Minute)
 
-	// 5. Format final avec label
+	// 5. Formatage pour réponse JSON : start, end et label lisible
 	var response []map[string]string
 	for _, slot := range finalSlots {
 		startStr := slot.Start.Format("15:04")
@@ -175,25 +223,30 @@ func GetAvailableSlots(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
+	// Envoi de la réponse JSON
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
 }
 
-// Obtenir les prochains rendez-vous par schoolID
+// Cette fonction récupère tous les rendez-vous à venir liés à une école spécifique.
+// Elle récupère également les noms des hôtes, invités et de l'école à partir de leur ID respectif.
 func FetchAppointmentsBySchoolID(w http.ResponseWriter, r *http.Request) {
+	// Récupération du paramètre schoolID depuis l'URL
 	schoolID := r.URL.Query().Get("schoolID")
-	query := `
-    SELECT a.*
-    FROM appointment a
-    JOIN user u
-    ON a.host = u.id
-    JOIN school s
-    ON a.school = s.id
-    WHERE s.id = $1
-    AND a.start_time >= NOW()
-    ORDER BY a.start_time 
-	ASC`
 
+	// Requête SQL : sélectionne les champs principaux de chaque rendez-vous futur lié à l'école spécifiée
+	query := `
+	SELECT a.id, a.host, a.guest, a.school, a.resource, a.start_time, a.end_time, a.title, a.token, a.status
+	FROM appointment a
+	JOIN usr u1 ON a.host = u1.id
+	JOIN usr u2 ON a.guest = u2.id
+	JOIN school s ON a.school = s.id
+	WHERE s.id = $1
+	AND a.start_time >= NOW()
+	ORDER BY a.start_time ASC
+	`
+
+	// Exécution de la requête
 	rows, err := database.GetConn().Query(query, schoolID)
 	if err != nil {
 		http.Error(w, "Échec de l'exécution de la requête : "+err.Error(), http.StatusInternalServerError)
@@ -201,88 +254,68 @@ func FetchAppointmentsBySchoolID(w http.ResponseWriter, r *http.Request) {
 	}
 	defer rows.Close()
 
-	columns, err := rows.Columns()
-	if err != nil {
-		http.Error(w, "Échec de la récupération des colonnes : "+err.Error(), http.StatusInternalServerError)
-		return
-	}
+	var appointments []Appointment
 
-	var appointments []map[string]interface{}
-
+	// Parcourt des résultats ligne par ligne
 	for rows.Next() {
-		values := make([]interface{}, len(columns))
-		valuePtrs := make([]interface{}, len(columns))
-		for i := range columns {
-			valuePtrs[i] = &values[i]
-		}
+		var appt Appointment
 
-		if err := rows.Scan(valuePtrs...); err != nil {
+		// Lecture des colonnes dans la structure Appointment
+		err := rows.Scan(
+			&appt.ID,
+			&appt.Host,
+			&appt.Guest,
+			&appt.School,
+			&appt.Resource,
+			&appt.StartTime,
+			&appt.EndTime,
+			&appt.Title,
+			&appt.Token,
+			&appt.Status,
+		)
+		if err != nil {
 			http.Error(w, "Échec de la lecture de la ligne : "+err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		appointment := make(map[string]interface{})
-		for i, col := range columns {
-			val := values[i]
-			if b, ok := val.([]byte); ok {
-				appointment[col] = string(b)
-			} else {
-				appointment[col] = val
-			}
-			// Si la colonne est 'host', trouver le nom de l'hôte dans la table user
-			if col == "host" {
-				hostID := val
-				var firstName string
-				var lastName string
-				err := database.GetConn().QueryRow(`
-				SELECT firstname, lastname 
-				FROM user 
-				WHERE id = $1`, hostID).Scan(&firstName, &lastName)
-				if err != nil {
-					http.Error(w, "Impossible de trouver le nom de l'hôte : "+err.Error(), http.StatusInternalServerError)
-					return
-				}
-				appointment["host_name"] = lastName + " " + firstName
-			}
-			// If the column is 'guest', find the guest name from the user table
-			if col == "guest" {
-				guestID := val
-				var firstName string
-				var lastName string
-				err := database.GetConn().QueryRow(`
-				SELECT firstname, lastname 
-				FROM user WHERE id = $1`, guestID).Scan(&firstName, &lastName)
-				if err != nil {
-					http.Error(w, "Impossible de trouver le nom de l'invité : "+err.Error(), http.StatusInternalServerError)
-					return
-				}
-				appointment["guest_name"] = lastName + " " + firstName
-			}
-			// If the column is 'school', find the school name from the school table
-			if col == "school" {
-				schoolID := val
-				var name string
-				err := database.GetConn().QueryRow(`
-				SELECT name 
-				FROM school 
-				WHERE id = $1`, schoolID).Scan(&name)
-				if err != nil {
-					http.Error(w, "Impossible de trouver le nom de l'école : "+err.Error(), http.StatusInternalServerError)
-					return
-				}
-				appointment["school_name"] = name
-			}
-
+		// Récupération du nom complet de l'hôte à partir de son ID
+		var hostFirstName, hostLastName string
+		err = database.GetConn().QueryRow(
+			`SELECT given_name, family_name FROM usr WHERE id = $1`, appt.Host,
+		).Scan(&hostFirstName, &hostLastName)
+		if err == nil {
+			appt.Host = hostFirstName + " " + hostLastName
 		}
 
-		appointments = append(appointments, appointment)
+		// Récupération du nom complet de l'invité
+		var guestFirstName, guestLastName string
+		err = database.GetConn().QueryRow(
+			`SELECT given_name, family_name FROM usr WHERE id = $1`, appt.Guest,
+		).Scan(&guestFirstName, &guestLastName)
+		if err == nil {
+			appt.Guest = guestFirstName + " " + guestLastName
+		}
+
+		// Récupération du nom de l'école
+		var schoolName string
+		err = database.GetConn().QueryRow(
+			`SELECT name FROM school WHERE id = $1`, appt.School,
+		).Scan(&schoolName)
+		if err == nil {
+			appt.School = schoolName
+		}
+
+		// Ajout du rendez-vous enrichi à la liste
+		appointments = append(appointments, appt)
 	}
 
+	// Gestion des erreurs d'itération
 	if err := rows.Err(); err != nil {
 		http.Error(w, "Erreur lors de l'itération des lignes : "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
+	// Envoi de la réponse JSON contenant tous les rendez-vous enrichis
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(appointments); err != nil {
 		http.Error(w, "Échec de l'encodage de la réponse : "+err.Error(), http.StatusInternalServerError)
@@ -290,9 +323,13 @@ func FetchAppointmentsBySchoolID(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Obtenir les prochains rendez-vous par userID
+// Cette fonction récupère tous les rendez-vous à venir où l'utilisateur spécifié
+// est soit l'hôte, soit l'invité. Elle enrichit les résultats avec les noms complets.
 func FetchAppointmentsByUserID(w http.ResponseWriter, r *http.Request) {
+	// Récupération du paramètre userID depuis l'URL
 	userID := r.URL.Query().Get("userID")
+
+	// Requête SQL pour obtenir les rendez-vous futurs associés à cet utilisateur
 	query := `
 	SELECT a.id, a.host, a.guest, a.school, a.resource, a.start_time, a.end_time, a.title, a.token, a.status
 	FROM appointment a
@@ -301,8 +338,10 @@ func FetchAppointmentsByUserID(w http.ResponseWriter, r *http.Request) {
 	JOIN school s ON a.school = s.id
 	WHERE (u1.unique_name = $1 OR u2.unique_name = $1)
 	AND a.start_time >= now()
-	ORDER BY a.start_time ASC`
+	ORDER BY a.start_time ASC
+	`
 
+	// Exécution de la requête SQL
 	rows, err := database.GetConn().Query(query, userID)
 	if err != nil {
 		http.Error(w, "Échec de l'exécution de la requête : "+err.Error(), http.StatusInternalServerError)
@@ -312,8 +351,11 @@ func FetchAppointmentsByUserID(w http.ResponseWriter, r *http.Request) {
 
 	var appointments []Appointment
 
+	// Parcours des résultats
 	for rows.Next() {
 		var appt Appointment
+
+		// Extraction des colonnes dans la structure Appointment
 		err := rows.Scan(
 			&appt.ID,
 			&appt.Host,
@@ -331,33 +373,44 @@ func FetchAppointmentsByUserID(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Récupérer les noms associés
+		// Récupération du nom complet de l'hôte
 		var hostFirstName, hostLastName string
-		err = database.GetConn().QueryRow(`SELECT given_name, family_name FROM usr WHERE id = $1`, appt.Host).Scan(&hostFirstName, &hostLastName)
+		err = database.GetConn().QueryRow(
+			`SELECT given_name, family_name FROM usr WHERE id = $1`, appt.Host,
+		).Scan(&hostFirstName, &hostLastName)
 		if err == nil {
 			appt.Host = hostFirstName + " " + hostLastName
 		}
 
+		// Récupération du nom complet de l'invité
 		var guestFirstName, guestLastName string
-		err = database.GetConn().QueryRow(`SELECT given_name, family_name FROM usr WHERE id = $1`, appt.Guest).Scan(&guestFirstName, &guestLastName)
+		err = database.GetConn().QueryRow(
+			`SELECT given_name, family_name FROM usr WHERE id = $1`, appt.Guest,
+		).Scan(&guestFirstName, &guestLastName)
 		if err == nil {
 			appt.Guest = guestFirstName + " " + guestLastName
 		}
 
+		// Récupération du nom de l'école associée
 		var schoolName string
-		err = database.GetConn().QueryRow(`SELECT name FROM school WHERE id = $1`, appt.School).Scan(&schoolName)
+		err = database.GetConn().QueryRow(
+			`SELECT name FROM school WHERE id = $1`, appt.School,
+		).Scan(&schoolName)
 		if err == nil {
 			appt.School = schoolName
 		}
 
+		// Ajout du rendez-vous enrichi à la liste
 		appointments = append(appointments, appt)
 	}
 
+	// Vérification d'erreurs lors de l'itération
 	if err := rows.Err(); err != nil {
 		http.Error(w, "Erreur lors de l'itération des lignes : "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
+	// Envoi de la réponse encodée en JSON
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(appointments); err != nil {
 		http.Error(w, "Échec de l'encodage de la réponse : "+err.Error(), http.StatusInternalServerError)
@@ -365,12 +418,15 @@ func FetchAppointmentsByUserID(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Récupérer les rendez-vous
+// Cette fonction récupère tous les rendez-vous présents dans la base de données,
+// puis enrichit les données avec les noms des utilisateurs et de l'école.
 func FetchAppointments(w http.ResponseWriter, r *http.Request) {
+	// Requête SQL pour récupérer tous les rendez-vous (sans filtre de date ni utilisateur)
 	query := `
 	SELECT id, host, guest, school, resource, start_time, end_time, title, token, status
 	FROM appointment`
 
+	// Exécution de la requête
 	rows, err := database.GetConn().Query(query)
 	if err != nil {
 		http.Error(w, "Échec de l'exécution de la requête : "+err.Error(), http.StatusInternalServerError)
@@ -380,8 +436,11 @@ func FetchAppointments(w http.ResponseWriter, r *http.Request) {
 
 	var appointments []Appointment
 
+	// Parcours des lignes du résultat
 	for rows.Next() {
 		var appt Appointment
+
+		// Lecture des champs de la ligne dans la structure Appointment
 		err := rows.Scan(
 			&appt.ID,
 			&appt.Host,
@@ -399,38 +458,50 @@ func FetchAppointments(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Récupérer les noms associés
+		// Récupération du nom complet de l'hôte
 		var hostFirstName, hostLastName string
-		err = database.GetConn().QueryRow(`SELECT given_name, family_name FROM usr WHERE id = $1`, appt.Host).Scan(&hostFirstName, &hostLastName)
+		err = database.GetConn().QueryRow(
+			`SELECT given_name, family_name FROM usr WHERE id = $1`, appt.Host,
+		).Scan(&hostFirstName, &hostLastName)
 		if err == nil {
 			appt.Host = hostFirstName + " " + hostLastName
 		}
 
+		// Récupération du nom complet de l'invité
 		var guestFirstName, guestLastName string
-		err = database.GetConn().QueryRow(`SELECT given_name, family_name FROM usr WHERE id = $1`, appt.Guest).Scan(&guestFirstName, &guestLastName)
+		err = database.GetConn().QueryRow(
+			`SELECT given_name, family_name FROM usr WHERE id = $1`, appt.Guest,
+		).Scan(&guestFirstName, &guestLastName)
 		if err == nil {
 			appt.Guest = guestFirstName + " " + guestLastName
 		}
 
+		// Récupération du nom de l'école
 		var schoolName string
-		err = database.GetConn().QueryRow(`SELECT name FROM school WHERE id = $1`, appt.School).Scan(&schoolName)
+		err = database.GetConn().QueryRow(
+			`SELECT name FROM school WHERE id = $1`, appt.School,
+		).Scan(&schoolName)
 		if err == nil {
 			appt.School = schoolName
 		}
 
+		// Ajout du rendez-vous enrichi à la liste
 		appointments = append(appointments, appt)
 	}
 
+	// Vérifie s'il y a eu une erreur pendant l'itération des lignes
 	if err := rows.Err(); err != nil {
 		http.Error(w, "Erreur lors de l'itération des lignes : "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
+	// Réponse JSON avec la liste des rendez-vous
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(appointments)
 }
 
-// Récupérer un rendez-vous par ID
+// Cette fonction récupère un rendez-vous spécifique à partir de son ID,
+// puis enrichit les données avec les noms des utilisateurs et de l'école.
 func FetchAppointment(w http.ResponseWriter, r *http.Request) {
 	appointmentID := r.URL.Query().Get("appointmentID")
 	query := `
@@ -479,7 +550,9 @@ func FetchAppointment(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(appt)
 }
 
-// Créer un rendez-vous
+// Cette fonction gère la création d'un rendez-vous en décodant le payload JSON,
+// en vérifiant l'existence de l'utilisateur invité, en insérant les données dans la base de données,
+// et en envoyant un e-mail de confirmation avec un lien de validation.
 func CreateAppointment(w http.ResponseWriter, r *http.Request) {
 	type AppointmentPayload struct {
 		School    int    `json:"school"`
@@ -736,7 +809,7 @@ func CreateAppointment(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Mettre à jour un rendez-vous
+// Cette fonction met à jour un rendez-vous existant en modifiant ses horaires de début et de fin.
 func UpdateAppointment(w http.ResponseWriter, r *http.Request) {
 	type AppointmentPayload struct {
 		Appointment struct {
@@ -786,7 +859,7 @@ func UpdateAppointment(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]interface{}{"lignesAffectees": rowsAffected})
 }
 
-// Supprimer un rendez-vous
+// Cette fonction supprime un rendez-vous de la base de données en utilisant son ID.
 func DeleteAppointment(w http.ResponseWriter, r *http.Request) {
 	userID := r.URL.Query().Get("appointmentID")
 
@@ -814,7 +887,7 @@ func DeleteAppointment(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Vérifier si l'utilisateur a des rendez-vous non confirmés
+// Cette fonction vérifie si un utilisateur a des rendez-vous non confirmés (status = false).
 func CheckAppointmentsStatus(userID int) bool {
 	query := `
 	SELECT 1
@@ -835,7 +908,7 @@ func CheckAppointmentsStatus(userID int) bool {
 	return false
 }
 
-// Fonction pour confirmer un rendez-vous
+// Cette fonction est appelée pour confirmer un rendez-vous en utilisant un token unique.
 func ConfirmAppointment(w http.ResponseWriter, r *http.Request) {
 	// Récupérer le token de la requête
 	token := r.URL.Query().Get("token")

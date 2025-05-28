@@ -402,7 +402,7 @@ const columns = [
     required: true,
     label: "Ecole",
     align: "left",
-    field: (row) => row.school_name,
+    field: (row) => row.school,
     format: (val) => `${val}`,
     sortable: true,
   },
