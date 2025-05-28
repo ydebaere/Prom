@@ -1,46 +1,48 @@
-# Ignorer les fichiers d'environnement
+# If you prefer the allow list template instead of the deny list, see community template:
+# https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
+#
+# Go modules
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Code coverage profiles and other test artifacts
+*.out
+coverage.*
+*.coverprofile
+profile.cov
+
+# Dependency directories (remove the comment below to include it)
+# vendor/
+
+# Go workspace file
+go.work
+go.work.sum
+
+# env file
 .env
-.env.production
-commandes.txt
-secret-prometheus.txt
-*/.env
 
-# Logs
-*.log
-logs/
+# Editor/IDE
+# .idea/
+# .vscode/
 
-# Dossiers Quasar / Node.js
-frontend/node_modules/
-frontend/dist/
-frontend/.quasar/
-frontend/.output/
-
-# Cache Quasar/Vite
-frontend/.vite/
-frontend/.cache/
-frontend/.temp/
-
-# Config éditeurs
-frontend/.idea/
-frontend/.vscode/
-backend/.idea/
-backend/.vscode/
-
-# Go build / cache
-backend/bin/
-backend/pkg/
-backend/*.exe
-backend/*.out
-backend/*.test
-backend/coverage.out
-
-# Fichiers système
+# Quasar module
 .DS_Store
-Thumbs.db
+.Thumbs.db
+*.sublime*
+.idea/
+debug.log
 
-# Dossiers globaux (au cas où)
+ui/.vscode/
+
 node_modules/
-dist/
-.cache/
-.temp/
+yarn.lock
+package-lock.json
 
+.eslintcache
