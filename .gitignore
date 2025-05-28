@@ -1,5 +1,6 @@
 # Ignorer les fichiers d'environnement
 .env
+.env.production
 commandes.txt
 secret-prometheus.txt
 */.env
