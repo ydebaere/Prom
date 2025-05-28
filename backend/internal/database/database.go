@@ -14,7 +14,6 @@ import (
 var conn *sql.DB
 
 // GetConn retourne la connexion active à la base de données.
-// Lève une erreur fatale si elle n’a pas été initialisée.
 func GetConn() *sql.DB {
 	if conn == nil {
 		log.Fatal("La connexion à la base de données n'est pas initialisée.")
@@ -23,7 +22,7 @@ func GetConn() *sql.DB {
 }
 
 // InitDatabase initialise la connexion à la base de données
-// en utilisant la configuration fournie.
+// en utilisant la configuration fournie en paramètre.
 func InitDatabase(conf *config.Config) {
 	dsn, err := buildDSN(conf)
 	if err != nil {
@@ -36,7 +35,7 @@ func InitDatabase(conf *config.Config) {
 		log.Fatalf("Erreur lors de l'ouverture de la base de données : %v", err)
 	}
 
-	// Vérification que la connexion est bien établie
+	// Gestion de l'erreur éventuelle
 	if err = db.Ping(); err != nil {
 		log.Fatalf("Impossible de se connecter à la base de données : %v", err)
 	}
@@ -45,6 +44,7 @@ func InitDatabase(conf *config.Config) {
 }
 
 // buildDSN génère la chaîne de connexion selon le type de base de données.
+// contenu dans le fichier .env
 func buildDSN(conf *config.Config) (string, error) {
 	switch strings.ToUpper(conf.DBType) {
 	case "POSTGRES":

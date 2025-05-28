@@ -16,18 +16,8 @@ import (
 )
 
 func Routes() {
-	/******************************************** ROUTES LIBRE***************************************/
 
-	// Status check
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
-	})
-
+	// Routes non sécurisées
 	// Prise de rendez-vous anonyme
 	http.HandleFunc("/anonymous-appointment", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -63,9 +53,8 @@ func Routes() {
 		}
 	})
 
-	/******************************************** ROUTES LIBRE***************************************/
-
-	/******************************************** ROUTES SECURE**************************************/
+	// Routes sécurisées
+	// Récupération des slots disponibles
 	http.HandleFunc("/availability", middleware.WithJWTMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -74,6 +63,7 @@ func Routes() {
 		appointment.GetAvailableSlots(w, r)
 	}))
 
+	// Gestion des indisponibilités
 	http.HandleFunc("/unavailabilities", middleware.WithJWTMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case "GET":
@@ -87,6 +77,7 @@ func Routes() {
 		}
 	}))
 
+	// Gestion des ressources
 	http.HandleFunc("/resources", middleware.WithJWTMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		schoolID := r.URL.Query().Get("schoolID")
 		switch r.Method {
@@ -107,6 +98,7 @@ func Routes() {
 		}
 	}))
 
+	// Gestion des utilisateurs
 	http.HandleFunc("/users", middleware.WithJWTMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		userID := r.URL.Query().Get("userID")
 		switch r.Method {
@@ -127,6 +119,7 @@ func Routes() {
 		}
 	}))
 
+	// Gestion des écoles
 	http.HandleFunc("/schools", middleware.WithJWTMiddleware((func(w http.ResponseWriter, r *http.Request) {
 		schoolID := r.URL.Query().Get("schoolID")
 		dirID := r.URL.Query().Get("dirID")
@@ -153,6 +146,7 @@ func Routes() {
 
 	})))
 
+	// Gestion des rendez-vous
 	http.HandleFunc("/appointments", middleware.WithJWTMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		appointmentID := r.URL.Query().Get("appointmentID")
 		userID := r.URL.Query().Get("userID")
@@ -181,6 +175,7 @@ func Routes() {
 		}
 	}))
 
+	// Gestion des ressources scolaires des utilisateurs
 	http.HandleFunc("/user-school-resource", middleware.WithJWTMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		userID := r.URL.Query().Get("userID")
 		schoolID := r.URL.Query().Get("schoolID")
@@ -209,6 +204,7 @@ func Routes() {
 		}
 	}))
 
+	// Gestion des emplois du temps
 	http.HandleFunc("/workschedule", middleware.WithJWTMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case "GET":
@@ -224,6 +220,7 @@ func Routes() {
 		}
 	}))
 
+	// Interrogation de Azure AD
 	http.HandleFunc("/get-azure-users", middleware.WithJWTMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case "GET":
@@ -232,6 +229,4 @@ func Routes() {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
 	}))
-
-	/******************************************** ROUTES SECURE**************************************/
 }
