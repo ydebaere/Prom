@@ -1,0 +1,43 @@
+# Ignorer les fichiers d'environnement
+.env
+*/.env
+
+# Logs
+*.log
+logs/
+
+# Dossiers Quasar / Node.js
+frontend/node_modules/
+frontend/dist/
+frontend/.quasar/
+frontend/.output/
+
+# Cache Quasar/Vite
+frontend/.vite/
+frontend/.cache/
+frontend/.temp/
+
+# Config éditeurs
+frontend/.idea/
+frontend/.vscode/
+backend/.idea/
+backend/.vscode/
+
+# Go build / cache
+backend/bin/
+backend/pkg/
+backend/*.exe
+backend/*.out
+backend/*.test
+backend/coverage.out
+
+# Fichiers système
+.DS_Store
+Thumbs.db
+
+# Dossiers globaux (au cas où)
+node_modules/
+dist/
+.cache/
+.temp/
+

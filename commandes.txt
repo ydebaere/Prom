@@ -1,0 +1,10 @@
+Build quasar ::
+npm run build
+
+Build go ::
+GOOS=linux GOARCH=amd64 go build -o prometheus-api
+
+Relancer service backend ::
+sudo systemctl restart prometheus-api.service
+
+

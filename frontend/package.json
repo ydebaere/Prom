@@ -1,0 +1,49 @@
+{
+  "name": "Prometheus",
+  "version": "0.0.1",
+  "description": "A Quasar Project",
+  "productName": "Prometheus",
+  "author": "ydebaere <ydebaere@gmail.com>",
+  "private": true,
+  "scripts": {
+    "lint": "eslint --ext .js,.vue ./",
+    "format": "prettier --write \"**/*.{js,vue,scss,html,md,json}\" --ignore-path .gitignore",
+    "test": "echo \"No test specified\" && exit 0",
+    "dev": "quasar dev",
+    "build": "quasar build"
+  },
+  "dependencies": {
+    "@azure/msal-browser": "^4.8.0",
+    "@fullcalendar/core": "^6.1.15",
+    "@fullcalendar/daygrid": "^6.1.15",
+    "@fullcalendar/interaction": "^6.1.15",
+    "@fullcalendar/multimonth": "^6.1.15",
+    "@fullcalendar/timegrid": "^6.1.15",
+    "@fullcalendar/vue3": "^6.1.15",
+    "@quasar/extras": "^1.16.4",
+    "@quasar/quasar-ui-qcalendar": "^4.1.2",
+    "axios": "^1.7.7",
+    "date-fns": "^4.1.0",
+    "jwt-decode": "^4.0.0",
+    "quasar": "^2.16.0",
+    "vue": "^3.4.18",
+    "vue-router": "^4.0.12"
+  },
+  "devDependencies": {
+    "@quasar/app-vite": "^1.9.0",
+    "autoprefixer": "^10.4.2",
+    "eslint": "^8.57.1",
+    "eslint-config-prettier": "^8.1.0",
+    "eslint-plugin-vue": "^9.29.1",
+    "postcss": "^8.4.14",
+    "prettier": "^2.5.1",
+    "sass": "^1.86.3",
+    "sass-loader": "^16.0.5",
+    "vite-plugin-checker": "^0.8.0"
+  },
+  "engines": {
+    "node": "^20 || ^18 || ^16",
+    "npm": ">= 6.13.4",
+    "yarn": ">= 1.21.1"
+  }
+}
