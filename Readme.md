@@ -11,7 +11,6 @@ Prometheus
     frontend/ # Interface utilisateur (SPA avec Quasar)
     backend/  # Serveur API en Go
 
-
 ---
 
 ## 🚀 Installation rapide
@@ -27,21 +26,27 @@ Prometheus
 
 ### 🔸 2. Lancer le **frontend**
 
+Dev ::
 ```bash
 cd frontend
 npm install
 quasar dev
 ```
 
+Build ::
+```bash
+npm run build
+```
+
 ### 🔸 2. Lancer le **backend**
 
-Go run
+Dev ::
 ```bash
 cd backend
 go run main.go
 ```
 
-Build
+Build ::
 ```bash
 GOOS=linux GOARCH=amd64 go build -o prometheus-api
 ```
