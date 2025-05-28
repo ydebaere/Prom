@@ -1,26 +1,26 @@
-# 📅 Prometheus
+# Prometheus
 
 > **Projet de fin d'études – Bachelier en Informatique de Gestion**
 
-## 🧩 Présentation
+## Présentation
 
 **Prometheus** est une application web complète destinée à faciliter la prise de rendez-vous entre différentes parties (ex. : élèves et écoles). Elle propose une gestion sécurisée des utilisateurs, des disponibilités et des réservations via une interface moderne développée avec **Quasar (Vue 3)**, et un serveur backend performant écrit en **Go**.
 
 ---
 
-## 🚀 Fonctionnalités principales
+## Fonctionnalités principales
 
-- 🔐 Authentification sécurisée par **JWT**
-- 👥 Gestion des utilisateurs avec rôles
-- 📅 Création, visualisation et suppression de rendez-vous
-- ⛔ Gestion des **indisponibilités**
-- 📱 Interface responsive (mobile/desktop) avec **Quasar Framework**
-- 🛠️ API REST sécurisée et structurée
-- 🗃️ Persistance des données avec **PostgreSQL**
+- Authentification sécurisée par **JWT**
+- Gestion des utilisateurs avec rôles
+- Création, visualisation et suppression de rendez-vous
+- Gestion des **indisponibilités**
+- Interface responsive (mobile/desktop) avec **Quasar Framework**
+- API REST sécurisée et structurée
+- Persistance des données avec **PostgreSQL**
 
 ---
 
-## 🗂️ Architecture du projet
+## Architecture du projet
 
 ```
 project/
@@ -37,7 +37,7 @@ project/
 
 ---
 
-## ⚙️ Installation et lancement
+## Installation et lancement
 
 ### 1. Prérequis
 
@@ -94,7 +94,7 @@ sudo systemctl restart prometheus-api.service
 
 ---
 
-## 🔐 Configuration (.env)
+## Configuration (.env)
 
 Les informations sensibles (clés, tokens, connexions) sont stockées dans un fichier `.env` (non versionné).
 
@@ -107,7 +107,7 @@ DATABASE_URL=postgres://user:password@host:port/dbname?sslmode=disable
 
 ---
 
-## 🎓 Contexte académique
+## Contexte académique
 
 Ce projet a été réalisé dans le cadre de mon **travail de fin d’études** en **Bachelier en Informatique de Gestion**.  
 Il illustre mes compétences dans les domaines suivants :
@@ -120,9 +120,9 @@ Il illustre mes compétences dans les domaines suivants :
 
 ---
 
-## 📌 À venir (Roadmap)
+## Amélioration(s) possible(s) 
 
-- 📆 Synchronisation avec des calendriers externes
+- Synchronisation avec des calendriers externes
 
 ---
 
