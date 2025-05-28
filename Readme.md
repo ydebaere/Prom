@@ -1,10 +1,10 @@
-# 📅 Appointment Booking App
+# 📅 Prometheus
 
-> **Projet de fin d'études – Bachelier en Informatique de Gestion**
+> **Epreuve intégrée – Bachelier en Informatique de Gestion**
 
 ## 🧩 Présentation
 
-**Appointment Booking App** est une application web complète destinée à faciliter la prise de rendez-vous entre différentes parties (ex. : élèves et écoles). Elle propose une gestion sécurisée des utilisateurs, des disponibilités et des réservations via une interface moderne développée avec **Quasar (Vue 3)**, et un serveur backend performant écrit en **Go**.
+**Prometheus** est une application web complète destinée à faciliter la prise de rendez-vous entre différentes parties (ex. : élèves et écoles). Elle propose une gestion sécurisée des utilisateurs, des disponibilités et des réservations via une interface moderne développée avec **Quasar (Vue 3)**, et un serveur backend performant écrit en **Go**.
 
 ---
 
@@ -22,10 +22,10 @@
 
 ## 🗂️ Architecture du projet
 
-project/
-├── frontend/ # Application Vue 3 avec Quasar
-├── backend/ # Serveur HTTP Go + API REST
-├── .env # Fichier de configuration (non versionné)
+**prometheus/**
+**├── frontend/ # Application Vue 3 avec Quasar**
+**├── backend/ # Serveur HTTP Go + API REST**
+**├── .env # Fichier de configuration (non versionné)**
 
 
 ### Technologies clés
@@ -84,7 +84,7 @@ Redémarrage du service (si systemd) :
 sudo systemctl restart prometheus-api.service
 ```
 
-🔐 Configuration (.env)
+## 🔐 Configuration (.env)
 
 Les informations sensibles (clés, tokens, connexions) sont stockées dans un fichier .env (non versionné).
 
@@ -92,7 +92,7 @@ Exemple de contenu :
 JWT_SECRET=your_secret_key
 DATABASE_URL=postgres://user:password@host:port/dbname?sslmode=disable
 
-🎓 Contexte académique
+## 🎓 Contexte académique
 
 Ce projet a été réalisé dans le cadre de mon travail de fin d’études en Bachelier en Informatique de Gestion.
 Il illustre mes compétences dans les domaines suivants :
@@ -107,7 +107,7 @@ Il illustre mes compétences dans les domaines suivants :
 
     Utilisation de conteneurs et configuration système
 
-📌 Possible améliorations (Roadmap)
+## 📌 Possible améliorations (Roadmap)
 
     📆 Synchronisation avec des calendriers externes (.ics)
 
