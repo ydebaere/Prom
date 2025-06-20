@@ -201,7 +201,7 @@ export async function updateUserSchoolResource(userID, schoolID, resourceID) {
       throw new Error("No token found");
     }
     const response = await fetch(url, {
-      method: "PUT",
+      method: "POST",
       headers,
       body: JSON.stringify({
         userID,

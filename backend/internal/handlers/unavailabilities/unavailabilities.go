@@ -7,7 +7,7 @@ import (
 	"backend/internal/database"
 )
 
-// get unavailabilities
+// Fonction pour récupérer les indisponibilités
 func GetUnavailabilities(w http.ResponseWriter, r *http.Request) {
 	query := `
 	SELECT *
@@ -74,6 +74,7 @@ func GetUnavailabilities(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(unavailabilities)
 }
 
+// Fonction pour créer une indisponibilité
 func CreateUnavailability(w http.ResponseWriter, r *http.Request) {
 	var unavailability map[string]interface{}
 	if err := json.NewDecoder(r.Body).Decode(&unavailability); err != nil {
@@ -102,6 +103,7 @@ func CreateUnavailability(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]interface{}{"id": id})
 }
 
+// Fonction pour supprimer une indisponibilité
 func DeleteUnavailability(w http.ResponseWriter, r *http.Request) {
 	unavailabilityID := r.URL.Query().Get("unavailabilityID")
 
@@ -111,6 +113,35 @@ func DeleteUnavailability(w http.ResponseWriter, r *http.Request) {
 	WHERE id = $1`
 
 	result, err := database.GetConn().Exec(query, unavailabilityID)
+	if err != nil {
+		http.Error(w, "Failed to execute query: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		http.Error(w, "Failed to get rows affected: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{"rowsAffected": rowsAffected})
+}
+
+// Fonction pour mettre à jour une indisponibilité
+func UpdateUnavailability(w http.ResponseWriter, r *http.Request) {
+	var unavailability map[string]interface{}
+	if err := json.NewDecoder(r.Body).Decode(&unavailability); err != nil {
+		http.Error(w, "Failed to decode request body: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	query := `
+	UPDATE unavailabilities 
+	SET date = $1, start = $2, end = $3, reason = $4 
+	WHERE id = $5`
+
+	result, err := database.GetConn().Exec(query, unavailability["date"], unavailability["start"], unavailability["end"], unavailability["reason"], unavailability["id"])
 	if err != nil {
 		http.Error(w, "Failed to execute query: "+err.Error(), http.StatusInternalServerError)
 		return

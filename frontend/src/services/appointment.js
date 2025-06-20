@@ -7,32 +7,9 @@ const headers = {
 
 import { format } from "date-fns";
 
-// export async function getNextAppointment(user_id) {
-//   const url = `${server}next-appointment?userID=${user_id}`;
-//   try {
-//     if (!token) {
-//       throw new Error("No token found");
-//     }
-//     const response = await fetch(url, {
-//       method: "GET",
-//       headers,
-//     });
-//     if (!response.ok) {
-//       throw new Error("Network response was not ok");
-//     }
-//     if (response.status === 404) {
-//       return response.json();
-//     }
-//     return response.json();
-//   } catch (error) {
-//     console.error("Error fetching roles:", error);
-//     throw error;
-//   }
-// }
-
-export async function getAvailabilities(user_id, date, duration) {
+export async function getAvailabilities(user, date, duration) {
   const formattedDate = format(new Date(date), "yyyy-MM-dd");
-  const url = `${server}availability?userID=${user_id}&date=${formattedDate}&duration=${duration}`;
+  const url = `${server}availability?user=${user}&date=${formattedDate}&resource=${duration}`;
   try {
     if (!token) {
       throw new Error("No token found");
@@ -150,7 +127,6 @@ export async function insertAppointment(appointment) {
 
 export async function deleteAppointment(appointment_id) {
   const url = `${server}appointments?appointmentID=${appointment_id}`;
-
   try {
     if (!token) {
       throw new Error("No token found");
@@ -166,7 +142,7 @@ export async function deleteAppointment(appointment_id) {
 
     return response.json();
   } catch (error) {
-    console.error("Error deleting role:", error);
+    console.error("Error deleting appointment:", error);
     throw error;
   }
 }
@@ -234,6 +210,25 @@ export async function confirmAppointment(token) {
     return response.json();
   } catch (error) {
     console.error("Error confirming appointment:", error);
+    throw error;
+  }
+}
+
+export async function cancelAppointment(token) {
+  const url = `${server}validate-appointment?token=${token}`;
+
+  try {
+    if (!token) {
+      throw new Error("No token found");
+    }
+    const response = await fetch(url, {
+      method: "DELETE",
+      headers,
+    });
+
+    return response.json();
+  } catch (error) {
+    console.error("Error canceling appointment:", error);
     throw error;
   }
 }

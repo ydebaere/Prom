@@ -15,7 +15,7 @@ type Config struct {
 	SMTPPassword string // Mot de passe pour le serveur SMTP
 	SMTPHost     string // Hôte du serveur SMTP
 	SMTPPort     string // Port du serveur SMTP
-	SMTPAuth     string // Type d'authentification pour le serveur SMTP
+	SMTPAuth     string // Type d'authentification pour le serveur SMTP (ex: "true" ou "false")
 
 	DBType     string // Type de base de données (ex: mysql, postgres)
 	DBUser     string // Nom d'utilisateur pour la base de données

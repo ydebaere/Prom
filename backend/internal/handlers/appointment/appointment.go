@@ -35,8 +35,7 @@ type Appointment struct {
 	Token     string    `json:"token,omitempty"`
 }
 
-// La fonction prend une liste de créneaux `base` et en retire les créneaux présents dans `removes`.
-// Elle retourne une nouvelle liste contenant les créneaux de base, moins ceux à retirer.
+// Fonction prend une liste de créneaux `base` et en retire les créneaux présents dans `removes`.
 func subtractSlots(base []TimeSlot, removes []TimeSlot) []TimeSlot {
 	var result []TimeSlot // Résultat final des créneaux après soustraction
 
@@ -66,7 +65,7 @@ func subtractSlots(base []TimeSlot, removes []TimeSlot) []TimeSlot {
 	return result
 }
 
-// La fonction retourne la partie du créneau `a` qui ne chevauche pas le créneau `b`.
+// Fonction retourne la partie du créneau `a` qui ne chevauche pas le créneau `b`.
 // Si `b` ne recouvre pas `a`, elle retourne `a` tel quel.
 // Si `b` coupe `a`, elle retourne 1 ou 2 créneaux restants après suppression de l'intersection.
 func subtractTwo(a, b TimeSlot) []TimeSlot {
@@ -97,7 +96,7 @@ func subtractTwo(a, b TimeSlot) []TimeSlot {
 	return slots
 }
 
-// Générer des créneaux horaires à partir de plages horaires
+// Fonction génére des créneaux horaires à partir de plages horaires
 // à partir d'une liste de plages `ranges` (début/fin) et d'une durée cible,
 // cette fonction découpe chaque plage en créneaux de durée fixe.
 func generateSlotsFromRanges(ranges []TimeSlot, duration time.Duration) []TimeSlot {
@@ -125,19 +124,30 @@ func generateSlotsFromRanges(ranges []TimeSlot, duration time.Duration) []TimeSl
 	return slots
 }
 
-// Cette fonction récupère les créneaux horaires disponibles pour un utilisateur donné à une date précise.
+// Fonction récupère les créneaux horaires disponibles pour un utilisateur donné à une date précise.
 // Elle prend en compte les horaires de travail et les indisponibilités de l'utilisateur,
 // puis découpe les créneaux disponibles en tranches de durée fixe.
 func GetAvailableSlots(w http.ResponseWriter, r *http.Request) {
-	// Récupération des paramètres de requête : userID, date et durée
-	userID := r.URL.Query().Get("userID")
+	// Récupération des paramètres de requête : user, date et durée
+	user := r.URL.Query().Get("user")
 	dateStr := r.URL.Query().Get("date")
-	durationStr := r.URL.Query().Get("duration")
+	resourceStr := r.URL.Query().Get("resource")
+	// durationStr := r.URL.Query().Get("duration")
 
-	// Conversion de la durée en entier (minutes)
-	duration, err := strconv.Atoi(durationStr)
-	if err != nil || duration <= 0 {
-		http.Error(w, "Paramètre de durée invalide", http.StatusBadRequest)
+	resourceID, err := strconv.Atoi(resourceStr)
+	if err != nil {
+		http.Error(w, "Paramètre resource invalide", http.StatusBadRequest)
+		return
+	}
+	fmt.Printf("Récupération des créneaux pour l'utilisateur : %s, date : %s, ressource : %d\n", user, dateStr, resourceID)
+	var duration2 int
+	durationQuery := `
+	SELECT duration
+	FROM resource
+	WHERE id = $1`
+	err = database.GetConn().QueryRow(durationQuery, resourceID).Scan(&duration2)
+	if err != nil {
+		http.Error(w, "Échec de la récupération de la durée : "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -161,9 +171,44 @@ func GetAvailableSlots(w http.ResponseWriter, r *http.Request) {
 	dayOfWeek := strings.ToLower(date.Weekday().String())
 	dayOfWeek = dayOfWeekMap[dayOfWeek]
 
+	parts := strings.SplitN(user, " ", 2)
+	userGivenname := ""
+	userFamilyName := ""
+	if len(parts) == 2 {
+		userGivenname = parts[0]
+		userFamilyName = parts[1]
+	} else if len(parts) == 1 {
+		userGivenname = parts[0]
+	}
+
+	fmt.Printf("Récupération des créneaux pour l'utilisateur : %s %s, date : %s, jour de la semaine : %s, durée : %d minutes\n", userGivenname, userFamilyName, dateStr, dayOfWeek, duration2)
+
+	// Si le paramètre user est un entier (ID utilisateur), on le récupère directement
+	var userIDInt int
+	if userID, err := strconv.Atoi(user); err == nil {
+		userIDInt = userID
+	} else {
+		// Sinon, on continue avec la logique existante (recherche par prénom/nom)
+		userIdQuery := `
+		SELECT id 
+		FROM usr 
+		WHERE given_name = $1
+		and family_name = $2`
+		// Récupération de l'ID de l'utilisateur à partir de son prénom et nom de famille
+		err = database.GetConn().QueryRow(userIdQuery, userGivenname, userFamilyName).Scan(&userIDInt)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				http.Error(w, "Utilisateur non trouvé", http.StatusNotFound)
+				return
+			}
+			http.Error(w, "Échec de la requête à la base de données : "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+
 	// 1. Récupération des horaires de travail
 	queryWork := `SELECT start_time, end_time FROM work_schedule WHERE user_id = $1 AND day_of_week = $2`
-	rowsWork, err := database.GetConn().Query(queryWork, userID, dayOfWeek)
+	rowsWork, err := database.GetConn().Query(queryWork, userIDInt, dayOfWeek)
 	if err != nil {
 		http.Error(w, "Erreur lors de la récupération des horaires de travail : "+err.Error(), http.StatusInternalServerError)
 		return
@@ -185,7 +230,7 @@ func GetAvailableSlots(w http.ResponseWriter, r *http.Request) {
 
 	// 2. Récupération des indisponibilités
 	queryUnavail := `SELECT start_time, end_time FROM unavailabilities WHERE user_id = $1 AND date = $2`
-	rowsUnavail, err := database.GetConn().Query(queryUnavail, userID, dateStr)
+	rowsUnavail, err := database.GetConn().Query(queryUnavail, userIDInt, dateStr)
 	if err != nil {
 		http.Error(w, "Erreur lors de la récupération des indisponibilités : "+err.Error(), http.StatusInternalServerError)
 		return
@@ -209,7 +254,7 @@ func GetAvailableSlots(w http.ResponseWriter, r *http.Request) {
 	availableRanges := subtractSlots(workSlots, unavailSlots)
 
 	// 4. Découpe les plages disponibles en créneaux de durée fixe
-	finalSlots := generateSlotsFromRanges(availableRanges, time.Duration(duration)*time.Minute)
+	finalSlots := generateSlotsFromRanges(availableRanges, time.Duration(duration2)*time.Minute)
 
 	// 5. Formatage pour réponse JSON : start, end et label lisible
 	var response []map[string]string
@@ -228,7 +273,7 @@ func GetAvailableSlots(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
-// Cette fonction récupère tous les rendez-vous à venir liés à une école spécifique.
+// Fonction récupère tous les rendez-vous à venir liés à une école spécifique.
 // Elle récupère également les noms des hôtes, invités et de l'école à partir de leur ID respectif.
 func FetchAppointmentsBySchoolID(w http.ResponseWriter, r *http.Request) {
 	// Récupération du paramètre schoolID depuis l'URL
@@ -323,9 +368,10 @@ func FetchAppointmentsBySchoolID(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Cette fonction récupère tous les rendez-vous à venir où l'utilisateur spécifié
+// Fonction récupère tous les rendez-vous à venir où l'utilisateur spécifié
 // est soit l'hôte, soit l'invité. Elle enrichit les résultats avec les noms complets.
 func FetchAppointmentsByUserID(w http.ResponseWriter, r *http.Request) {
+	fmt.Printf("DEBUGG : FetchAppointmentsByUserID called\n")
 	// Récupération du paramètre userID depuis l'URL
 	userID := r.URL.Query().Get("userID")
 
@@ -418,7 +464,7 @@ func FetchAppointmentsByUserID(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Cette fonction récupère tous les rendez-vous présents dans la base de données,
+// Fonction récupère tous les rendez-vous présents dans la base de données,
 // puis enrichit les données avec les noms des utilisateurs et de l'école.
 func FetchAppointments(w http.ResponseWriter, r *http.Request) {
 	// Requête SQL pour récupérer tous les rendez-vous (sans filtre de date ni utilisateur)
@@ -500,7 +546,7 @@ func FetchAppointments(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(appointments)
 }
 
-// Cette fonction récupère un rendez-vous spécifique à partir de son ID,
+// Fonction récupère un rendez-vous spécifique à partir de son ID,
 // puis enrichit les données avec les noms des utilisateurs et de l'école.
 func FetchAppointment(w http.ResponseWriter, r *http.Request) {
 	// Récupération du paramètre appointmentID depuis l'URL
@@ -564,7 +610,7 @@ func FetchAppointment(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(appt)
 }
 
-// Cette fonction gère la création d'un rendez-vous en décodant le payload JSON,
+// Fonction gère la création d'un rendez-vous en décodant le payload JSON,
 // en vérifiant l'existence de l'utilisateur invité, en insérant les données dans la base de données,
 // et en envoyant un e-mail de confirmation avec un lien de validation.
 func CreateAppointment(w http.ResponseWriter, r *http.Request) {
@@ -592,14 +638,6 @@ func CreateAppointment(w http.ResponseWriter, r *http.Request) {
 	guestEmail := payload.Guest
 	schoolID := payload.School
 
-	// Choix de l'URL pour la validation de l'e-mail
-	var emailUrl string
-	if strings.Contains(r.Host, "localhost") {
-		emailUrl = "http://localhost:9000/validate-appointment?"
-	} else {
-		emailUrl = "https://prometheus.hainaut-promsoc.be/validate-appointment?"
-	}
-
 	// Vérification de l'existence de l'utilisateur invité
 	var userExists bool
 	var userID int
@@ -614,6 +652,7 @@ func CreateAppointment(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Échec de la requête à la base de données : "+err.Error(), http.StatusInternalServerError)
 		return
 	}
+
 	// Si l'utilisateur existe, on récupère son ID
 	if userExists {
 		userIDQuery := `
@@ -630,6 +669,7 @@ func CreateAppointment(w http.ResponseWriter, r *http.Request) {
 	} else {
 		// Si l'utilisateur n'existe pas, on le crée
 		// On extrait le prénom et le nom de famille à partir de l'e-mail
+		fmt.Printf("DEBUGG : User does not exist, creating new user\n")
 		guestGivenName := ""
 		guestFamilyName := ""
 		var parts []string
@@ -775,11 +815,13 @@ func CreateAppointment(w http.ResponseWriter, r *http.Request) {
 		}
 		resp := appt
 		escapedToken := url.QueryEscape(fmt.Sprintf("%v", token))
+		var emailUrl string
+		if strings.Contains(r.Host, "localhost") {
+			emailUrl = "http://localhost:9000/validate-appointment?"
+		} else {
+			emailUrl = "https://prometheus.hainaut-promsoc.be/validate-appointment?"
+		}
 		fullURL := fmt.Sprintf("%stoken=%s", emailUrl, escapedToken)
-
-		// Envoi de la réponse JSON avec le rendez-vous créé
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
 
 		// Envoi de l'e-mail de confirmation
 		// Corps de l'e-mail HTML
@@ -834,7 +876,16 @@ func CreateAppointment(w http.ResponseWriter, r *http.Request) {
 		// Titre de l'e-mail
 		mailTitle := "Demande de confirmation de rendez-vous"
 
-		service.SendEmail(config.LoadConfig(), guestEmail, mailTitle, body)
+		// Envoi du mail
+		err = service.SendEmail(config.LoadConfig(), guestEmail, mailTitle, body)
+		if err != nil {
+			http.Error(w, "Échec de l'envoi de l'e-mail : "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// Envoi de la réponse JSON avec le rendez-vous créé
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
 	} else {
 		// Conflit si un rendez-vous non confirmé existe déjà
 		w.Header().Set("Content-Type", "application/json")
@@ -844,7 +895,7 @@ func CreateAppointment(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Cette fonction met à jour un rendez-vous existant en modifiant ses horaires de début et de fin.
+// Fonction met à jour un rendez-vous existant en modifiant ses horaires de début et de fin.
 func UpdateAppointment(w http.ResponseWriter, r *http.Request) {
 	type AppointmentPayload struct {
 		Appointment struct {
@@ -894,7 +945,7 @@ func UpdateAppointment(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]interface{}{"lignesAffectees": rowsAffected})
 }
 
-// Cette fonction supprime un rendez-vous de la base de données en utilisant son ID.
+// Fonction supprime un rendez-vous de la base de données en utilisant son ID.
 func DeleteAppointment(w http.ResponseWriter, r *http.Request) {
 	userID := r.URL.Query().Get("appointmentID")
 
@@ -922,7 +973,7 @@ func DeleteAppointment(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Cette fonction vérifie si un utilisateur a des rendez-vous non confirmés (status = false).
+// Fonction vérifie si un utilisateur a des rendez-vous non confirmés (status = false).
 func CheckAppointmentsStatus(userID int) bool {
 	query := `
 	SELECT 1
@@ -943,7 +994,7 @@ func CheckAppointmentsStatus(userID int) bool {
 	return false
 }
 
-// Cette fonction est appelée pour confirmer un rendez-vous en utilisant un token unique.
+// Fonction est appelée pour confirmer un rendez-vous en utilisant un token unique.
 func ConfirmAppointment(w http.ResponseWriter, r *http.Request) {
 	// Récupérer le token de la requête
 	token := r.URL.Query().Get("token")
@@ -981,20 +1032,24 @@ func ConfirmAppointment(w http.ResponseWriter, r *http.Request) {
 		(SELECT unique_name FROM usr WHERE id = appointment.guest), 
 		(SELECT unique_name FROM usr WHERE id = appointment.host),
 		(SELECT given_name FROM usr WHERE id = appointment.guest), 
-		(SELECT family_name FROM usr WHERE id = appointment.guest), 
+		(SELECT family_name FROM usr WHERE id = appointment.guest),
+		(SELECT given_name FROM usr WHERE id = appointment.host), 
+		(SELECT family_name FROM usr WHERE id = appointment.host),  
 		(SELECT name FROM school WHERE id = appointment.school),
 		(SELECT start_time from appointment WHERE id = $1),
 		(SELECT end_time from appointment WHERE id = $1)`
 
 	var confirmedID int
-	var guestUniqueName, hostUniqueName, given_name, family_name, school_name, hostTitle string
+	var guestUniqueName, guestGiven_name, guestFamily_name, hostUniqueName, hostGiven_name, hostFamily_name, school_name, hostTitle string
 	var date, start_time, end_time time.Time
 	err = database.GetConn().QueryRow(updateQuery, appointmentID).Scan(
 		&confirmedID,
 		&guestUniqueName,
 		&hostUniqueName,
-		&given_name,
-		&family_name,
+		&guestGiven_name,
+		&guestFamily_name,
+		&hostGiven_name,
+		&hostFamily_name,
 		&school_name,
 		&start_time,
 		&end_time,
@@ -1005,9 +1060,16 @@ func ConfirmAppointment(w http.ResponseWriter, r *http.Request) {
 	}
 
 	hostTitle = "Vous avez un nouveau rendez-vous!"
-	guestTitle := "Votre rendez-vous est confirmé"
+	guestTitle := "Votre rendez-vous est confirmé!"
 	// extraire la date des champs de date et d'heure
 	date = start_time.Truncate(24 * time.Hour)
+
+	if guestGiven_name == "N/A" || guestGiven_name == "" {
+		guestGiven_name = "Personne"
+	}
+	if guestFamily_name == "N/A" || guestFamily_name == "" {
+		guestFamily_name = "extérieure"
+	}
 
 	hostBody := fmt.Sprintf(`
 		<!DOCTYPE html>
@@ -1041,8 +1103,8 @@ func ConfirmAppointment(w http.ResponseWriter, r *http.Request) {
 		start_time.Format("15:04"),
 		end_time.Format("15:04"),
 		school_name,
-		given_name,
-		family_name,
+		guestGiven_name,
+		guestFamily_name,
 		guestUniqueName,
 	)
 
@@ -1054,7 +1116,7 @@ func ConfirmAppointment(w http.ResponseWriter, r *http.Request) {
 		<html lang="fr">
 		<head>
 		<meta charset="UTF-8">
-		<title>Nouveau rendez-vous</title>
+		<title>Votre rendez-vous est confirmé</title>
 		</head>
 		<body style="font-family: Arial, sans-serif; color: #333; padding: 20px;">
 		<div style="max-width: 600px; margin: auto; border: 1px solid #eee; border-radius: 8px; overflow: hidden; background-color: #fafafa;">
@@ -1087,9 +1149,9 @@ func ConfirmAppointment(w http.ResponseWriter, r *http.Request) {
 		start_time.Format("15:04"),
 		end_time.Format("15:04"),
 		school_name,
-		given_name,
-		family_name,
-		guestUniqueName,
+		hostGiven_name,
+		hostFamily_name,
+		hostUniqueName,
 		fullURL,
 	)
 
@@ -1101,4 +1163,95 @@ func ConfirmAppointment(w http.ResponseWriter, r *http.Request) {
 		"message": "Rendez-vous confirmé avec succès",
 		"status":  http.StatusOK,
 	})
+}
+
+// Fonction pour supprimer un rendez-vous en utilisant un token unique.
+func DeleteAppointmentByToken(w http.ResponseWriter, r *http.Request) {
+	// Récupération du token depuis les paramètres de la requête
+	token := r.URL.Query().Get("token")
+	if token == "" {
+		http.Error(w, "Le token est manquant", http.StatusBadRequest)
+		return
+	}
+	// Requête pour récupérer l'ID du rendez-vous associé au token
+	var appointmentID int
+	query := `
+	SELECT id
+	FROM appointment
+	WHERE token = $1`
+	err := database.GetConn().QueryRow(query, token).Scan(&appointmentID)
+	if err == sql.ErrNoRows {
+		http.Error(w, "Token invalide ou rendez-vous introuvable", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		http.Error(w, "Échec de la requête à la base de données : "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	var userID int
+	queryUser := `
+	SELECT guest
+	FROM appointment
+	WHERE id = $1`
+	err = database.GetConn().QueryRow(queryUser, appointmentID).Scan(&userID)
+	if err != nil {
+		http.Error(w, "Échec de la récupération de l'utilisateur : "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	// Récupération du nom d'utilisateur pour l'envoi de l'e-mail
+	var guestUniqueName string
+	guestQuery := `
+	SELECT unique_name
+	FROM usr
+	WHERE id = (SELECT guest FROM appointment WHERE id = $1)`
+	err = database.GetConn().QueryRow(guestQuery, appointmentID).Scan(&guestUniqueName)
+	if err != nil {
+		http.Error(w, "Échec de la récupération du nom d'utilisateur : "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	// Requête pour supprimer le rendez-vous
+	deleteQuery := `
+	DELETE FROM appointment
+	WHERE id = $1`
+	_, err = database.GetConn().Exec(deleteQuery, appointmentID)
+	if err != nil {
+		http.Error(w, "Échec de la suppression du rendez-vous : "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	// Envoi de la réponse de succès
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"message": "Rendez-vous supprimé avec succès",
+		"status":  http.StatusOK,
+	})
+	// Envoi d'un e-mail de confirmation de suppression
+	body := `
+		<!DOCTYPE html>
+		<html lang="fr">
+		<head>
+		<meta charset="UTF-8">
+		<title>Rendez-vous supprimé</title>
+		</head>
+		<body style="font-family: Arial, sans-serif; color: #333; padding: 20px;">
+		<div style="max-width: 600px; margin: auto; border: 1px solid #eee; border-radius: 8px; overflow: hidden; background-color: #fafafa;">
+			<div style="background-color: #26a69a; padding: 10px;">
+			<img src="https://upload.wikimedia.org/wikipedia/commons/2/29/Logo_Province_de_Hainaut.png" alt="Logo Prometheus" style="height: 40px;">
+			</div>
+			<div style="padding: 20px;">
+				<h2 style="color: #26a69a;">Votre rendez-vous a été supprimé</h2>
+				<p>Nous vous informons que votre rendez-vous a été supprimé avec succès.</p>
+				<p>Si vous avez des questions ou si vous souhaitez reprogrammer un rendez-vous, n'hésitez pas à nous contacter.</p>
+				<p style="margin-top: 30px;">Merci de votre confiance !<br>L'équipe de <strong>Prometheus</strong></p>
+			</div>
+			<div style="background-color: #eee; padding: 10px; font-size: 0.9em; text-align: center;">
+			Si vous n'avez pas demandé cette suppression, veuillez ignorer cet e-mail.
+			</div>
+		</div>
+		</body>
+		</html>
+		`
+	// Titre de l'e-mail
+	mailTitle := "Confirmation de la suppression du rendez-vous"
+	// Envoi de l'e-mail de confirmation
+	service.SendEmail(config.LoadConfig(), guestUniqueName, mailTitle, body)
 }

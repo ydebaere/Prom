@@ -30,51 +30,44 @@ func init() {
 	jwks, err = keyfunc.Get(jwksURL, keyfunc.Options{
 		RefreshInterval: time.Hour,
 		RefreshErrorHandler: func(err error) {
-			fmt.Printf("Failed to refresh JWKS: %v\n", err)
+			fmt.Printf("Échec de l'actualisation du JWKS : %v\n", err)
 		},
 		RefreshTimeout: 10 * time.Second,
 	})
 	if err != nil {
-		panic(fmt.Sprintf("Failed to create JWKS from Azure: %v", err))
+		panic(fmt.Sprintf("Échec de la création du JWKS depuis Azure : %v", err))
 	}
 }
 
 func JWTMiddleware(w http.ResponseWriter, r *http.Request) bool {
 	cfg := config.LoadAzureConfig()
 	url := fmt.Sprintf("api://%s", cfg.ClientID)
-
 	authHeader := r.Header.Get("Authorization")
 	if authHeader == "" {
 		http.Error(w, "Error", http.StatusUnauthorized)
 		return false
 	}
-
 	tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 	if tokenString == AnonymousToken {
-		fmt.Println("[AUTH] Anonymous access granted.")
+		fmt.Println("[AUTH] Accès anonyme accordé.")
 		return true
 	}
-
 	if tokenString == authHeader {
 		http.Error(w, "Error", http.StatusUnauthorized)
 		return false
 	}
-
 	claims := &Claims{}
 	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
 		return jwks.Keyfunc(token)
 	})
-
 	if err != nil || !token.Valid {
 		http.Error(w, "Error", http.StatusUnauthorized)
 		return false
 	}
-
 	if !claims.VerifyAudience(url, true) {
 		http.Error(w, "Error", http.StatusUnauthorized)
 		return false
 	}
-
 	return true
 }
 

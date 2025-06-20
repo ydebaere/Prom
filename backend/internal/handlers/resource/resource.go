@@ -2,6 +2,7 @@ package resource
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"backend/internal/database"
@@ -17,7 +18,7 @@ type Resource struct {
 	Visible     bool   `json:"visible"`     // Indique si la ressource est visible pour les utilisateurs
 }
 
-// Récupère toutes les ressources présentes en base de données
+// Fonction pour récupérer toutes les ressources
 func FetchResources(w http.ResponseWriter, r *http.Request) {
 	query := `
 	SELECT id, name, description, school, duration, visible
@@ -54,7 +55,7 @@ func FetchResources(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(resources)
 }
 
-// Récupère les ressources associées à une école spécifique (via schoolID)
+// Fonction pour récupérer les ressources d'une école spécifique
 func FetchResourcesBySchool(w http.ResponseWriter, r *http.Request) {
 	schoolID := r.URL.Query().Get("schoolID")
 
@@ -96,7 +97,7 @@ func FetchResourcesBySchool(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(resources)
 }
 
-// Crée une nouvelle ressource dans la base de données
+// Fonction pour créer une nouvelle ressource
 func CreateResource(w http.ResponseWriter, r *http.Request) {
 	var resource Resource
 	// Décodage du corps de la requête JSON dans la structure Resource
@@ -104,6 +105,8 @@ func CreateResource(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Échec du décodage du corps de la requête : "+err.Error(), http.StatusBadRequest)
 		return
 	}
+
+	fmt.Print("DEBUGG : Création de la ressource : ", resource)
 
 	queryInsert := `
 		INSERT INTO resource (name, description, school, duration, visible)
@@ -129,7 +132,7 @@ func CreateResource(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(resource)
 }
 
-// Met à jour une ressource existante en base
+// Fonction pour mettre à jour une ressource existante
 func UpdateResource(w http.ResponseWriter, r *http.Request) {
 	var resource Resource
 	// Décodage du corps JSON
@@ -163,7 +166,7 @@ func UpdateResource(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]interface{}{"lignesAffectees": rowsAffected})
 }
 
-// Supprime une ressource en fonction de son ID
+// Fonction pour supprimer une ressource
 func DeleteResource(w http.ResponseWriter, r *http.Request) {
 	resourceID := r.URL.Query().Get("resourceID")
 	if resourceID == "" {

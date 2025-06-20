@@ -17,7 +17,7 @@ type WorkSchedule struct {
 	EndTime   time.Time `json:"end_time"`
 }
 
-// CREATE
+// Fonction pour créer un planning de travail
 func CreateWorkSchedule(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("DEBUG: CreateWorkSchedule called")
 	var schedule map[string]interface{}
@@ -30,14 +30,14 @@ func CreateWorkSchedule(w http.ResponseWriter, r *http.Request) {
 	var lastID int
 	err := database.GetConn().QueryRow(idQuery).Scan(&lastID)
 	if err != nil {
-		http.Error(w, "Failed to fetch last ID: "+err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Échec de la récupération du dernier ID : "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 	newID := lastID + 1
 
 	userID, err := user.GetUseridFromDB(schedule["user_id"].(string))
 	if err != nil {
-		http.Error(w, "Failed to fetch user ID: "+err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Échec de la récupération de l'ID utilisateur : "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -47,30 +47,30 @@ func CreateWorkSchedule(w http.ResponseWriter, r *http.Request) {
 	`
 	_, err = database.GetConn().Exec(query, newID, userID, schedule["day_of_week"], schedule["start_time"], schedule["end_time"])
 	if err != nil {
-		http.Error(w, "Failed to insert work schedule: "+err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Échec de l'insertion du planning de travail : "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"message": "Work schedule created",
+		"message": "Planning de travail créé",
 		"id":      newID,
 	})
 }
 
-// READ (all by user)
+// Fonction pour récupérer les plannings de travail par utilisateur
 func GetWorkSchedulesByUser(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("DEBUG: GetWorkSchedulesByUser called")
 	userIDString := r.URL.Query().Get("userID")
 	if userIDString == "" {
-		http.Error(w, "Missing userID", http.StatusBadRequest)
+		http.Error(w, "Identifiant utilisateur manquant", http.StatusBadRequest)
 		return
 	}
 
 	userID, err := user.GetUseridFromDB(userIDString)
 	if err != nil {
-		http.Error(w, "Failed to fetch user ID: "+err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Échec de la récupération de l'ID utilisateur : "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 	query := `
@@ -80,7 +80,7 @@ func GetWorkSchedulesByUser(w http.ResponseWriter, r *http.Request) {
 	`
 	rows, err := database.GetConn().Query(query, userID)
 	if err != nil {
-		http.Error(w, "Query error: "+err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Erreur lors de la requête : "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 	defer rows.Close()
@@ -91,7 +91,7 @@ func GetWorkSchedulesByUser(w http.ResponseWriter, r *http.Request) {
 		var user_id, day string
 		var start, end time.Time
 		if err := rows.Scan(&id, &user_id, &day, &start, &end); err != nil {
-			http.Error(w, "Row scan error: "+err.Error(), http.StatusInternalServerError)
+			http.Error(w, "Erreur lors de la lecture de la ligne : "+err.Error(), http.StatusInternalServerError)
 			return
 		}
 		schedule := map[string]interface{}{
@@ -107,7 +107,7 @@ func GetWorkSchedulesByUser(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(schedulesByDay)
 }
 
-// UPDATE
+// Fonction pour mettre à jour un planning de travail
 func UpdateWorkSchedule(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("DEBUG: UpdateWorkSchedule called")
 	var schedule map[string]interface{}
@@ -139,7 +139,7 @@ func UpdateWorkSchedule(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// DELETE
+// Fonction pour supprimer un planning de travail
 func DeleteWorkSchedule(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("DEBUG: DeleteWorkSchedule called")
 	var req map[string]interface{}

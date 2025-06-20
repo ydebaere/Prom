@@ -25,6 +25,7 @@ func main() {
 	routes.Routes()
 
 	// Configuration des CORS
+	// Cross-Origin Resource Sharing (CORS) pour permettre les requêtes depuis d'autres origines
 	handlerWithCors := middleware.SetupCORS(http.DefaultServeMux)
 
 	// Démarrage du serveur

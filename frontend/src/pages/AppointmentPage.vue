@@ -380,8 +380,8 @@ async function loadAvailabilities() {
       console.error("No resource selected");
       return;
     }
-
-    const duration = model2.value.duration || 30;
+    console.log("Model 2:", model2.value);
+    const duration = model2.value.id;
 
     const availabilitiesResponse = await getAvailabilities(
       model4.value.user_id,
@@ -504,9 +504,7 @@ async function confirmEmail() {
       position: "center",
     });
     return;
-  }
-
-  try {
+  } try {
     // Calculer startTime à partir de la date choisie et de l'heure sélectionnée (timing)
     const formattedDate = date.value.replace(/\//g, "-");
     const startTime = `${formattedDate} ${timing.value}:00`;
@@ -533,24 +531,36 @@ async function confirmEmail() {
       }
     );
 
-    if (!response.ok) {
-      throw new Error("Network response was not ok");
-    }
+    // if (!response.ok) {
+    //   throw new Error("Network response was not ok");
+    // }
 
-    const responseData = await response.json();
+    if (response.status === 422) {
+      $q.dialog({
+        title: "Aucune disponibilité",
+        message: "Pas de disponibilités le jour choisi, veuillez choisir une autre date.",
+        ok: "Fermer"
+      });
+      model4.value = null;
+      model5.value = null;
+      date.value = null;
+      showEmailDialog.value = false;
+      return;
+    }
 
     $q.notify({
       type: "positive",
       message: `Rendez-vous ajouté avec succès n'oubliez pas de le confirmer via l'email recu!`,
       position: "center",
     });
+
     showEmailDialog.value = false;
     route.push("/");
   } catch (error) {
     console.error("Erreur lors de la création du rendez-vous anonyme:", error);
     $q.notify({
       type: "negative",
-      message: "LOL ::: Erreur lors de l'ajout du rendez-vous anonyme",
+      message: "Erreur lors de l'ajout du rendez-vous anonyme",
       position: "center",
     });
   }

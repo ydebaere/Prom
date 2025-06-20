@@ -8,6 +8,7 @@ import (
 	"backend/internal/database"
 )
 
+// Fonction pour récupérer les écoles par directeur
 func FetchSchoolByDirector(w http.ResponseWriter, r *http.Request) {
 	directorID := r.URL.Query().Get("dirID")
 	query := `
@@ -76,6 +77,7 @@ func FetchSchoolByDirector(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(schools)
 }
 
+// Fonction pour récupérer toutes les écoles
 func FetchSchools(w http.ResponseWriter, r *http.Request) {
 	query := `
 	SELECT * 
@@ -142,6 +144,7 @@ func FetchSchools(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(schools)
 }
 
+// Fonction pour récupérer une école par son ID
 func FetchSchool(w http.ResponseWriter, r *http.Request) {
 	schoolID := r.URL.Query().Get("schoolID")
 	if schoolID == "" {
@@ -167,6 +170,7 @@ func FetchSchool(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(school)
 }
 
+// Fonction pour créer une nouvelle école
 func CreateSchool(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("CreateSchool called")
 	var school map[string]interface{}
@@ -174,6 +178,7 @@ func CreateSchool(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to decode request body: "+err.Error(), http.StatusBadRequest)
 		return
 	}
+	fmt.Printf("DEBUG: School data received: %+v\n", school)
 
 	// Récupérer le dernier ID school et l'incrémenter
 	idQuery := `
@@ -186,6 +191,30 @@ func CreateSchool(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	newID := lastID + 1
+
+	// Vérifier si le directeur existe déjà
+	var directorID int
+	err = database.GetConn().QueryRow(`
+		SELECT id FROM usr WHERE unique_name = $1
+	`, school["director"]).Scan(&directorID)
+	if err != nil {
+		// Si le directeur n'existe pas, l'insérer
+		fmt.Printf("DEBUG: Inserting director with unique_name: %s, given_name: %s, family_name: %s\n")
+		insertUserQuery := `
+		INSERT INTO usr (unique_name, given_name, family_name)
+		VALUES ($1, $2, $3)
+		RETURNING id`
+		err = database.GetConn().QueryRow(
+			insertUserQuery,
+			school["director"],
+			school["director_given_name"],
+			school["director_family_name"],
+		).Scan(&directorID)
+		if err != nil {
+			http.Error(w, "Failed to insert director: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
 
 	// Insérer la nouvelle école avec le nouvel ID
 	query := `
@@ -209,6 +238,7 @@ func CreateSchool(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]interface{}{"rowsAffected": rowsAffected})
 }
 
+// Fonction pour mettre à jour une école
 func UpdateSchool(w http.ResponseWriter, r *http.Request) {
 	var school map[string]interface{}
 	if err := json.NewDecoder(r.Body).Decode(&school); err != nil {
@@ -243,6 +273,7 @@ func UpdateSchool(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]interface{}{"rowsAffected": rowsAffected})
 }
 
+// Fonction pour supprimer une école
 func DeleteSchool(w http.ResponseWriter, r *http.Request) {
 	schoolID := r.URL.Query().Get("schoolID")
 	if schoolID == "" {
@@ -272,6 +303,7 @@ func DeleteSchool(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]interface{}{"rowsAffected": rowsAffected})
 }
 
+// Fonction appelée après l'insertion d'une école pour créer des ressources par défaut
 func afterInsertSchoolTrigger(id int) {
 	fmt.Println("afterInsertSchoolTrigger called for school ID:", id)
 	schoolNameQuery := `

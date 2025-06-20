@@ -328,8 +328,8 @@ func DeleteUser(w http.ResponseWriter, r *http.Request) {
 	_, err = tx.Exec(`
 		UPDATE appointment 
 		SET 
-			host = CASE WHEN host = $1 THEN 999999 ELSE host END,
-			guest = CASE WHEN guest = $1 THEN 999999 ELSE guest END
+			host = CASE WHEN host = $1 THEN 0 ELSE host END,
+			guest = CASE WHEN guest = $1 THEN 0 ELSE guest END
 		WHERE host = $1 OR guest = $1
 	`, userID)
 	if err != nil {

@@ -81,9 +81,10 @@
               clickable
               @click="selectAgent(agent)"
             >
-              <q-item-section
-                >{{ agent.given_name }} {{ agent.family_name }}</q-item-section
-              >
+                <q-item-section>
+                {{ agent.given_name === "N/A" ? 'Personne' : agent.given_name }} {{ agent.family_name === "N/A" ? 'extérieure' : agent.family_name }}
+                </q-item-section>
+
             </q-item>
           </q-list>
         </div>
@@ -128,7 +129,7 @@
           <q-card v-if="selectedAgent" flat bordered class="q-mt-md">
             <q-card-section class="row items-center justify-between">
               <div class="text-subtitle1">
-                {{ selectedAgent.given_name }} {{ selectedAgent.family_name }}
+                {{ selectedAgent.given_name === "N/A" ? "Personne" : selectedAgent.given_name }} {{ selectedAgent.family_name === "N/A" ? "extérieure" : selectedAgent.family_name }}
               </div>
               <q-btn
                 flat
@@ -151,15 +152,6 @@
                 label="Email"
                 outlined
               />
-
-              <!-- <div class="text-subtitle1 q-mt-md q-mb-sm">
-                Ressources associées
-              </div>
-              <q-list bordered>
-                <q-item>
-                  <q-item-section>{{ test }}</q-item-section>
-                </q-item>
-              </q-list> -->
             </q-card-section>
           </q-card>
         </div>
@@ -174,12 +166,13 @@
           <div class="text-h5">Ajouter une école</div>
         </q-card-section>
         <q-card-section>
-          <q-input v-model="newSchool.name" label="Nom" outlined dense />
+          <q-input v-model="newSchool.name" label="Nom de l'école" outlined dense />
+
           <q-select
             v-model="newSchool.director"
             use-input
             input-debounce="300"
-            label="Rechercher une école"
+            label="Rechercher un directeur"
             :options="emailSuggestions"
             @filter="(val, update, abort) => filterAzureEmail(val, update, abort)"
             option-label="mail"
@@ -190,7 +183,34 @@
             dense
             class="q-mb-md"
             :popup-content-class="'q-select-popup'"
-            @update:model-value="onDirectorSelect()"
+            @update:model-value="onDirectorSelect"
+          />
+          <q-input
+            v-model="newSchool.director"
+            label="Email du directeur"
+            outlined
+            dense
+            class="q-mb-md"
+            readonly
+            disable
+          />
+          <q-input
+            v-model="newSchool.director_given_name"
+            label="Prénom du directeur"
+            outlined
+            dense
+            class="q-mb-md"
+            readonly
+            disable
+          />
+          <q-input
+            v-model="newSchool.director_family_name"
+            label="Nom du directeur"
+            outlined
+            dense
+            class="q-mb-md"
+            readonly
+            disable
           />
         </q-card-section>
         <q-card-actions align="right">
@@ -348,9 +368,8 @@ export default {
       newSchool: {
         name: "",
         director: "",
-        address: "",
-        phone: "",
-        email: "",
+        director_family_name: "",
+        director_given_name: "",
       },
       showSchoolDialog: false,
       showAddSchoolDialog: false,
@@ -444,19 +463,18 @@ export default {
     },
     onDirectorSelect(val) {
       console.log("Valeur sélectionnée:", val);
-      newSchool.director = val;
-      // const selected =
-      // this.emailSuggestions &&
-      // this.emailSuggestions.find(
-      //   (item) => item.mail === val || item.mail === this.newAgentSelection
-      // );
-      // if (selected) {
-      // this.newAgent.unique_name = selected.mail;
-      // this.newAgent.given_name = selected.given_name || "";
-      // this.newAgent.family_name = selected.family_name || "";
-      // } else if (typeof val === "string") {
-      // this.newAgent.unique_name = val;
-      // }
+      const selected =
+      this.emailSuggestions &&
+      this.emailSuggestions.find(
+        (item) => item.mail === val || item.mail === this.newAgentSelection
+      );
+      if (selected) {
+      this.newSchool.director = selected.mail;
+      this.newSchool.director_given_name = selected.given_name || "";
+      this.newSchool.director_family_name = selected.family_name || "";
+      } else if (typeof val === "string") {
+      this.newAgent.unique_name = val;
+      }
     },
     // Méthode pour filtrer les emails Azure AD
     async filterAzureEmail(val, update) {
@@ -519,9 +537,8 @@ export default {
       this.newSchool = {
         name: "",
         director: "",
-        address: "",
-        phone: "",
-        email: "",
+        director_familiy_name: "",
+        director_given_name: "",
       };
       this.showAddSchoolDialog = true;
     },

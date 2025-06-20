@@ -37,7 +37,7 @@
               label="Annuler le rendez-vous"
               color="negative"
               class="full-width q-mx-sm"
-              @click="cancelAppointment(appointment.id)"
+              @click="canceledAppointment(appointment.id)"
             />
             </div>
         </div>
@@ -50,7 +50,7 @@
 import { useQuasar } from "quasar";
 import { ref, onMounted } from "vue";
 import { useRouter } from "vue-router";
-import { confirmAppointment, deleteAppointment } from "../services/appointment";
+import { confirmAppointment, cancelAppointment } from "../services/appointment";
 
 export default {
   name: "ValidateAppointment",
@@ -66,6 +66,7 @@ export default {
     const loading = ref(true);
     const appointment = ref(null);
     const server = import.meta.env.VITE_BASE_URL;
+
     async function fetchAppointments() {
       try {
         const response = await fetch(
@@ -87,6 +88,27 @@ export default {
       }
     }
 
+    async function canceledAppointment () {
+      try {
+          const response = await fetch(
+            `${server}/validate-appointment?token=${props.token}`,
+            {
+              method: "DELETE",
+            }
+          );
+          if (response.status === 200) {
+            router.push("/");
+            $q.notify({
+              type: "positive",
+              message: "Rendez-vous supprimé avec succès !",
+              position: "center",
+            });
+          }
+        } catch (error) {
+          console.error("Erreur lors de la suppression du rendez-vous:", error);
+        }
+    }
+
     const confirmingAppointment = async (token) => {
       try {
         const response = await confirmAppointment(token);
@@ -97,31 +119,11 @@ export default {
             message: "Rendez-vous confirmé avec succès !",
             position: "center",
           });
-        } else {
-          console.error("Erreur lors de la confirmation du rendez-vous");
         }
       } catch (error) {
         console.error("Erreur lors de la confirmation du rendez-vous:", error);
       }
     };
-
-    const cancelAppointment = async (id) => {
-      try {
-          const response = await deleteAppointment(id);
-          if (response.status === 200) {
-            router.push("/");
-            $q.notify({
-              type: "positive",
-              message: "Rendez-vous supprimé avec succès !",
-              position: "center",
-            });
-          } else {
-            console.error("Erreur lors de la suppression du rendez-vous");
-          }
-        } catch (error) {
-          console.error("Erreur lors de la suppression du rendez-vous:", error);
-        }
-    }
 
     const goToHome = () => {
       router.push("/");
@@ -136,7 +138,7 @@ export default {
       appointment,
       goToHome,
       confirmingAppointment,
-      cancelAppointment,
+      canceledAppointment,
     };
   },
 };

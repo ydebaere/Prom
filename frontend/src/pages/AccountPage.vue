@@ -44,7 +44,7 @@
               />
             </q-item-section>
           </q-item>
-          <q-item>
+          <!-- <q-item>
             <q-item-section side>
               <strong>Importer vos rendez-vous :</strong>
               <q-btn
@@ -54,7 +54,7 @@
                 @click="uploadICS"
               />
             </q-item-section>
-          </q-item>
+          </q-item> -->
         </q-list>
       </q-card-section>
       </q-card>
@@ -88,6 +88,7 @@
                   @click="viewDetails(props.row)"
                 />
                 <q-btn
+                  v-if="props.row.guest === user.name"
                   flat
                   round
                   dense
@@ -109,6 +110,7 @@
             <template v-else v-slot:body-cell-action="props">
               <q-td :props="props">
                 <q-btn
+                v-if="props.row.guest === user.name"
                   flat
                   round
                   dense
@@ -183,7 +185,7 @@
       </q-card>
       <q-space class="q-mb-md" />
         <!-- Indisponibilités Fixes -->
-      <!-- <q-card v-if="[0, 1, 2].some((role) => user.roles?.includes(role))"
+      <q-card v-if="[0, 1, 2].some((role) => user.roles?.includes(role))"
         flat
         bordered
         class="q-mt-md"
@@ -281,7 +283,7 @@
             </q-list>
           </div>
         </q-card-section>
-      </q-card> -->
+      </q-card>
       <q-dialog v-model="showEditDialog" persistent>
         <q-card style="min-width: 400px">
           <q-card-section>
@@ -442,7 +444,7 @@ const noAvailabilitiesMessage = ref("");
 
 
 async function loadAvailabilities(appointment) {
-  const hostID = appointment.guest;
+  const hostID = appointment.host;
   const schoolID = appointment.school;
   const date = appointment.start_time ? new Date(appointment.start_time) : appointment.date;
   const resource = appointment.resource;
@@ -460,7 +462,7 @@ async function loadAvailabilities(appointment) {
     const availabilitiesResponse = await getAvailabilities(
       hostID,
       date,
-      duration
+      resource
     );
 
     availabilities.value = (availabilitiesResponse || []).map((slot) => ({
@@ -482,6 +484,7 @@ async function loadAvailabilities(appointment) {
 }
 
 function openEditDialog(appointment) {
+  console.log("Opening edit dialog for appointment:", appointment);
   loadAvailabilities(appointment);
 
   const start = new Date(appointment.start_time);
@@ -670,52 +673,6 @@ function downloadICS() {
   link.click();
 }
 
-function uploadICS() {
-  const input = document.createElement("input");
-  input.type = "file";
-  input.accept = ".ics";
-  input.onchange = (event) => {
-    const file = event.target.files[0];
-    if (!file) {
-      $q.notify({
-        type: "negative",
-        message: "Aucun fichier sélectionné",
-      });
-      return;
-    }
-
-    const formData = new FormData();
-    formData.append("icsFile", file);
-
-    const server = import.meta.env.VITE_BASE_URL;
-    fetch(`${server}calendar-ics?unique_name=${user.unique_name}`, {
-      method: "POST",
-      body: formData,
-    })
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error("Erreur lors de l'import du fichier");
-        }
-        return response.json();
-      })
-      .then(() => {
-        $q.notify({
-          type: "positive",
-          message: "Fichier importé avec succès",
-        });
-        loadUserAppointments();
-      })
-      .catch((error) => {
-        console.error("Upload failed:", error);
-        $q.notify({
-          type: "negative",
-          message: "Erreur lors de l'import du fichier",
-        });
-      });
-  };
-  input.click();
-}
-
 function formatDate(date, isMobile) {
   const adjustedDate = new Date(date);
   adjustedDate.setHours(adjustedDate.getHours() - 2);
@@ -778,7 +735,7 @@ function viewDetails(row) {
     message: `
       <div><strong>Date:</strong> ${row.start_time}</div>
       <div><strong>Titre:</strong> ${row.title}</div>
-      <div><strong>Ecole:</strong> ${row.school_name}</div>
+      <div><strong>Ecole:</strong> ${row.school}</div>
     `,
     html: true,
     ok: {

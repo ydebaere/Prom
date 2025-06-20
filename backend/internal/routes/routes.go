@@ -3,7 +3,6 @@ package routes
 import (
 	"net/http"
 
-	"backend/internal/config"
 	"backend/internal/handlers/appointment"
 	"backend/internal/handlers/resource"
 	"backend/internal/handlers/school"
@@ -24,8 +23,8 @@ func Routes() {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		cfg := config.LoadConfig() // Assuming a function to load or create a *config.Config instance
-		service.CreateAnonymousAppointment(cfg, w, r)
+		// cfg := config.LoadConfig()
+		service.CreateAnonymousAppointment(w, r)
 	})
 
 	// Informations apres prise de rendez-vous
@@ -35,17 +34,16 @@ func Routes() {
 			service.ValidateAnonymousAppointment(w, r)
 		case "POST":
 			appointment.ConfirmAppointment(w, r)
+		case "DELETE":
+			appointment.DeleteAppointmentByToken(w, r)
 		default:
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
-
 	})
 
 	// Exportation du calendrier
 	http.HandleFunc(("/calendar-ics"), func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
-		case "POST":
-			service.ImportCalendar(w, r)
 		case "GET":
 			service.ExportCalendar(w, r)
 		default:
@@ -151,6 +149,7 @@ func Routes() {
 		appointmentID := r.URL.Query().Get("appointmentID")
 		userID := r.URL.Query().Get("userID")
 		schoolID := r.URL.Query().Get("schoolID")
+		// cfg := config.LoadConfig()
 
 		switch r.Method {
 		case "GET":

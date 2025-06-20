@@ -28,9 +28,11 @@
               <div class="q-mb-sm">
                 Rendez-vous avec
                 <strong>{{
-                  appointment.host === user.unique_name
-                    ? appointment.guest
-                    : appointment.host
+                  appointment.guest === "N/A N/A"
+                    ? appointment.title
+                    : (appointment.host === user.name
+                        ? appointment.guest
+                        : appointment.host)
                 }}</strong>
               </div>
               <div class="q-mt-sm">

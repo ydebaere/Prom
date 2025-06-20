@@ -24,14 +24,14 @@ export async function downloadAppointments(token, unique_name) {
 }
 
 export function getUser() {
+  // TODO: CHANGER METHODE IF
   const user = localStorage.getItem("user");
   if (user) {
     const parsedUser = JSON.parse(user);
     if (parsedUser.oid ===
-      // Y.DeBaere
-      // G.Libens
-      "15288e1a-a671-4287-825c-3e376a232dc5" ||
-      "9c1792fe-5cee-4ac1-8f1b-1aabb8fda10f" ) {
+      "15288e1a-a671-4287-825c-3e376a232dc5") {
+        // Y.DEBAERE
+        console.log("SuperAdministrateur");
       if (!Array.isArray(parsedUser.roles)) {
         parsedUser.roles = [];
       }
@@ -41,11 +41,38 @@ export function getUser() {
       }
       return parsedUser;
     }
+    if (parsedUser.oid ===
+      "d6385587-8809-4faa-9010-fc3143f16e3e") {
+      // B.BOUGARD
+      console.log("Administrateur");
+      if (!Array.isArray(parsedUser.roles)) {
+        parsedUser.roles = [];
+      }
+      if (!parsedUser.roles.includes(0)) {
+        parsedUser.roles.push(0);
+        parsedUser.roles.push(1);
+      }
+      return parsedUser;
+    }
+    // TODO:ADD SUPER USER
+    // if (parsedUser.oid ===
+    //   "") {
+    //   // X.XXXX
+    //   console.log("Administrateur");
+    //   if (!Array.isArray(parsedUser.roles)) {
+    //     parsedUser.roles = [];
+    //   }
+    //   if (!parsedUser.roles.includes(0)) {
+    //     parsedUser.roles.push(0);
+    //     parsedUser.roles.push(1);
+    //   }
+    //   return parsedUser;
+    // }
     else {
       if (!Array.isArray(parsedUser.groups)) {
         parsedUser.groups = [];
-      } else if (parsedUser.groups.some(group => group.includes(".ETU"))) {
-        console.log("Student");
+      } else if (parsedUser.groups.some(group => group.includes("HAINAUT-PROMSOC\\IPHLF.ETU"))) {
+        console.log("Etudiant");
         if (!Array.isArray(parsedUser.roles)) {
           parsedUser.roles = [];
         }
@@ -53,15 +80,15 @@ export function getUser() {
           parsedUser.roles.push(3);
         }
       } else if (parsedUser.groups.some(group => group.includes(".ADM"))) {
-        console.log("Secretary");
+        console.log("Personnel administratif");
         if (!Array.isArray(parsedUser.roles)) {
           parsedUser.roles = [];
         }
         if (!parsedUser.roles.includes(2)) {
           parsedUser.roles.push(2);
         }
-      } else if (parsedUser.groups.some(group => group.includes(".DIR"))) {
-        console.log("Director");
+      } else if (parsedUser.groups.some(group => group.trim() === "HAINAUT-PROMSOC\\IPHLF.DIR")) {
+        console.log("Directeur");
         if (!Array.isArray(parsedUser.roles)) {
           parsedUser.roles = [];
         }

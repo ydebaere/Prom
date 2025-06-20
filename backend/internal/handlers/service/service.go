@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"net/smtp"
 	"net/url"
-	"os"
 	"strings"
 	"time"
 
@@ -23,7 +22,7 @@ import (
 )
 
 // Structure pour capturer l'unique_name envoyé dans la requête
-type AnonymousAppointmentRequest struct {
+type AnonymousAppointmentPayload struct {
 	Unique_name string `json:"unique_name"`
 	StartTime   string `json:"start_time"`
 	EndTime     string `json:"end_time"`
@@ -55,12 +54,12 @@ func SendEmail(config *config.Config, to, subject, body string) error {
 
 	auth := smtp.PlainAuth("", from, password, smtpHost)
 
-	fmt.Println("DEBUGG : Email sent successfully")
 	err := smtp.SendMail(smtpHost+":"+smtpPort, auth, from, []string{to}, []byte(msg))
 	if err != nil {
 		fmt.Printf("DEBUGG : Failed to send email: %v\n", err)
 		return err
 	}
+	fmt.Println("DEBUGG : Email sent successfully")
 	return nil
 }
 
@@ -134,97 +133,100 @@ func ValidateAnonymousAppointment(w http.ResponseWriter, r *http.Request) {
 }
 
 // Fonction pour créer un rendez-vous anonyme
-func CreateAnonymousAppointment(config *config.Config, w http.ResponseWriter, r *http.Request) {
+func CreateAnonymousAppointment(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("DEBUGG : CreateAnonymousAppointment function called")
 	// Décoder les données de la requête
-	var req AnonymousAppointmentRequest
-	err := json.NewDecoder(r.Body).Decode(&req)
-	if err != nil || req.Unique_name == "" {
-		http.Error(w, "Invalid request body or unique_name missing", http.StatusBadRequest)
+	var payload AnonymousAppointmentPayload
+	err := json.NewDecoder(r.Body).Decode(&payload)
+	if err != nil || payload.Unique_name == "" {
+		http.Error(w, "Échec du décodage du corps de la requête", http.StatusBadRequest)
 		return
 	}
 
 	// Générer un token unique
 	token, err := GenerateUniqueToken()
 	if err != nil {
-		http.Error(w, "Failed to generate unique token", http.StatusInternalServerError)
+		http.Error(w, "Échec de la génération du token unique", http.StatusInternalServerError)
 		return
 	}
 
-	var userID int
-
 	// Vérifier si l'utilisateur existe déjà
+	var userID int
 	var userExists bool
 	userExistsQuery := `
 	SELECT EXISTS (
 		SELECT 1
 		FROM usr
-		WHERE unique_name = $1
+		WHERE unique_name ILIKE $1
 	)`
-	err = database.GetConn().QueryRow(userExistsQuery, req.Unique_name).Scan(&userExists)
+	err = database.GetConn().QueryRow(userExistsQuery, payload.Unique_name).Scan(&userExists)
 	if err != nil {
-		http.Error(w, "Failed to query database: "+err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Échec de la requête à la base de données: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
-
+	// Si l'utilisateur existe, on récupère son ID
 	if userExists {
 		userIDQuery := `
 		SELECT id 
 		FROM usr 
-		WHERE unique_name = $1 
+		WHERE unique_name ILIKE $1 
 		ORDER BY id 
 		DESC LIMIT 1`
 
-		err = database.GetConn().QueryRow(userIDQuery, req.Unique_name).Scan(&userID)
+		err = database.GetConn().QueryRow(userIDQuery, payload.Unique_name).Scan(&userID)
 		if err != nil {
-			http.Error(w, "Failed to query database: "+err.Error(), http.StatusInternalServerError)
+			http.Error(w, "Échec de la requête à la base de données: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
 		fmt.Printf("DEBUGG : User ID found: %d\n", userID)
 	} else {
-		fmt.Printf("DEBUGG : User does not exist, creating new user\n")
+		// Si l'utilisateur n'existe pas, on le crée
+		fmt.Printf("DEBUGG : L'utilisateur n'existe pas, création d'un nouvel utilisateur\n")
 		userQuery := `
 		INSERT INTO usr 
 		(unique_name) 
-		VALUES ($1)`
+		VALUES ($1)
+		RETURNING id`
 
-		_, err = database.GetConn().Exec(userQuery, req.Unique_name)
+		err = database.GetConn().QueryRow(userQuery, payload.Unique_name).Scan(&userID)
 		if err != nil {
-			http.Error(w, "Failed to insert data into database: "+err.Error(), http.StatusInternalServerError)
+			http.Error(w, "Échec de l'insertion des données dans la base de données: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
+		fmt.Printf("DEBUGG : New user created with ID: %d\n", userID)
 
-		// Récupérer l'ID de l'utilisateur nouvellement inséré
-		userIDQuery := `
-		SELECT id 
-		FROM usr 
-		WHERE unique_name = $1 
-		ORDER BY id 
-		DESC LIMIT 1`
-
-		err = database.GetConn().QueryRow(userIDQuery, req.Unique_name).Scan(&userID)
-		if err != nil {
-			http.Error(w, "Failed to query database: "+err.Error(), http.StatusInternalServerError)
+		schoolId := payload.SchoolID
+		resourceQuery := `
+		SELECT id
+		FROM resource
+		WHERE school = $1 
+		AND name LIKE '%Invité%'
+		`
+		var resourceID int
+		err = database.GetConn().QueryRow(resourceQuery, schoolId).Scan(&resourceID)
+		if err != nil && err != sql.ErrNoRows {
+			http.Error(w, "Échec de la requête à la base de données: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
-
+		fmt.Printf("DEBUGG : Resource ID found: %d\n", resourceID)
 		// insérer le rôle de l'utilisateur
 		userRoleQuery := `
 		INSERT INTO 
 		user_school_resource (user_id, school_id, resource_id) 
 		VALUES ($1, $2, $3)`
 
-		_, err = database.GetConn().Exec(userRoleQuery, userID, req.SchoolID, 4)
+		_, err = database.GetConn().Exec(userRoleQuery, userID, payload.SchoolID, resourceID)
 		if err != nil {
-			http.Error(w, "Failed to insert data into database: "+err.Error(), http.StatusInternalServerError)
+			http.Error(w, "Échec de l'insertion des données dans la base de données: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
+		fmt.Printf("DEBUGG : User role inserted for user ID: %d\n", userID)
 	}
 
 	// Calculer l'heure de fin d'un rendez-vous
-	startTime, err := time.Parse("2006-01-02 15:04:05", req.StartTime)
+	startTime, err := time.Parse("2006-01-02 15:04:05", payload.StartTime)
 	if err != nil {
-		http.Error(w, "Failed to parse start time: "+err.Error(), http.StatusBadRequest)
+		http.Error(w, "Échec de l'analyse de l'heure de début: "+err.Error(), http.StatusBadRequest)
 		return
 	}
 	endTime := startTime.Add(30 * time.Minute) // Ajoute 30 minutes à l'heure de début par défaut (@secretariat)
@@ -252,24 +254,25 @@ func CreateAnonymousAppointment(config *config.Config, w http.ResponseWriter, r 
 
 	dayOfWeek := strings.ToLower(startTime.Weekday().String())
 	var hostID int
-	err = database.GetConn().QueryRow(hostQuery, req.SchoolID, dayOfWeek, startTime.Format("15:04:05"), endTime.Format("15:04:05"), startTime.Format("2006-01-02")).Scan(&hostID)
+	err = database.GetConn().QueryRow(hostQuery, payload.SchoolID, dayOfWeek, startTime.Format("15:04:05"), endTime.Format("15:04:05"), startTime.Format("2006-01-02")).Scan(&hostID)
 	if err != nil {
-		fmt.Printf("hostQuery : %s\n", hostQuery)
-		fmt.Printf("With params : %d, %s, %s, %s, %s\n", req.SchoolID, dayOfWeek, startTime.Format("15:04:05"), endTime.Format("15:04:05"), startTime.Format("2006-01-02"))
-		http.Error(w, "No available host found: "+err.Error(), http.StatusNotFound)
+		// Utilisation du code d'erreur HTTP 422 (Unprocessable Entity) pour indiquer qu'aucun hôte n'est disponible
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Aucun hôte disponible trouvé : " + err.Error()})
 		return
 	}
-
-	fmt.Printf("DEBUGG : Host ID found: %d\n", hostID)
 
 	// Insérer le rendez-vous
 	query := `
 		INSERT INTO appointment (host, guest, start_time, end_time, school, title, resource, token) 
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		RETURNING id,
+		(SELECT name FROM school WHERE id = $5)`
 
-	_, err = database.GetConn().Exec(query, hostID, userID, req.StartTime, endTime, req.SchoolID, req.Unique_name, 2, token)
+	_, err = database.GetConn().Exec(query, hostID, userID, payload.StartTime, endTime, payload.SchoolID, payload.Unique_name, 0, token)
 	if err != nil {
-		http.Error(w, "Failed to insert data into database: "+err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Échec de l'insertion des données dans la base de données: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -279,22 +282,28 @@ func CreateAnonymousAppointment(config *config.Config, w http.ResponseWriter, r 
 	SELECT name
 	FROM school
 	WHERE id = $1`
-	err = database.GetConn().QueryRow(schoolQuery, req.SchoolID).Scan(&schoolName)
+	err = database.GetConn().QueryRow(schoolQuery, payload.SchoolID).Scan(&schoolName)
 	if err != nil {
-		http.Error(w, "Failed to query database: "+err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Échec de la requête à la base de données: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	// Générer le lien unique
-	link := fmt.Sprintf("http://localhost:9000/validate-appointment?token=%s", token)
-
+	var emailUrl string
+	if strings.Contains(r.Host, "localhost") {
+		emailUrl = "http://localhost:9000/validate-appointment?"
+	} else {
+		emailUrl = "https://prometheus.hainaut-promsoc.be/validate-appointment?"
+	}
+	fullURL := fmt.Sprintf("%stoken=%s", emailUrl, token)
 	// Corps du mail HTML
+
 	body := fmt.Sprintf(`
 		<!DOCTYPE html>
 		<html lang="fr">
 		<head>
 		<meta charset="UTF-8">
-		<title>Confirmation de rendez-vous</title>
+		<title>Demande de confirmation de rendez-vous</title>
 		</head>
 		<body style="font-family: Arial, sans-serif; color: #333; padding: 20px;">
 		<div style="max-width: 600px; margin: auto; border: 1px solid #eee; border-radius: 8px; overflow: hidden; background-color: #fafafa;">
@@ -302,7 +311,7 @@ func CreateAnonymousAppointment(config *config.Config, w http.ResponseWriter, r 
 			<img src="https://upload.wikimedia.org/wikipedia/commons/2/29/Logo_Province_de_Hainaut.png" alt="Logo E-Cale" style="height: 40px;">
 			</div>
 			<div style="padding: 20px;">
-			<h2 style="color: #26a69a;">Confirmation de rendez-vous</h2>
+			<h2 style="color: #26a69a;">Demande de confirmation de rendez-vous</h2>
 			<p><strong>Identité :</strong> %s</p>
 			<p><strong>Date :</strong> %s</p>
 			<p><strong>Début :</strong> %s</p>
@@ -324,202 +333,30 @@ func CreateAnonymousAppointment(config *config.Config, w http.ResponseWriter, r 
 		</body>
 		</html>
 		`,
-		req.Unique_name,
+		payload.Unique_name,
 		startTime.Format("02-01-2006"),
 		startTime.Format("15:04"),
 		endTime.Format("15:04"),
 		schoolName,
-		link,
+		fullURL,
 	)
+	// Titre du mail
+	mailTitle := "Demande de confirmation de rendez-vous"
 
-	// Envoi du mail HTML
-	err = SendEmail(config, req.Unique_name, "Votre rendez-vous via Prometheus", body)
+	// Envoi du mail
+	err = SendEmail(config.LoadConfig(), payload.Unique_name, mailTitle, body)
 	if err != nil {
-		http.Error(w, "Failed to send email: "+err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Échec de l'envoi de l'email : "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	// Répondre avec un statut de succès
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"message": "Anonymous appointment created and email sent successfully"})
-}
-
-// Fonction pour confirmer un rendez-vous
-func ConfirmAppointment(w http.ResponseWriter, r *http.Request) {
-	// Récupérer le token de la requête
-	token := r.URL.Query().Get("token")
-	if token == "" {
-		http.Error(w, "Token is missing", http.StatusBadRequest)
-		return
-	}
-
-	// Rechercher le rendez-vous correspondant au token
-	var appointmentID int
-	query := `
-	SELECT id 
-	FROM appointment 
-	WHERE token = $1`
-	err := database.GetConn().QueryRow(query, token).Scan(&appointmentID)
-	if err == sql.ErrNoRows {
-		http.Error(w, "Invalid token or appointment not found", http.StatusNotFound)
-		return
-	} else if err != nil {
-		http.Error(w, "Failed to query database: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	// Mettre à jour le statut du rendez-vous
-	updateQuery := `
-	UPDATE appointment 
-	SET status = 'true' 
-	WHERE id = $1`
-	_, err = database.GetConn().Exec(updateQuery, appointmentID)
-	if err != nil {
-		http.Error(w, "Failed to update appointment status: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"message": "Appointment confirmed successfully",
-		"status":  http.StatusOK,
-	})
-}
-
-// Fonction pour récupérer les groupes ou rôles d'un utilisateur via Microsoft Graph
-func GetUserRolesFromGraph(accessToken, userID string) (map[string]interface{}, error) {
-	// URL de l'API Microsoft Graph pour récupérer les groupes de l'utilisateur
-	url := fmt.Sprintf("https://graph.microsoft.com/v1.0/users/%s/memberOf", userID)
-	// Créer une requête HTTP GET
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %v", err)
-	}
-
-	// Ajouter le token d'accès dans l'en-tête Authorization
-	req.Header.Set("Authorization", "Bearer "+accessToken)
-	req.Header.Set("Content-Type", "application/json")
-
-	// Effectuer la requête
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to send request: %v", err)
-	}
-	defer resp.Body.Close()
-
-	// Lire la réponse
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %v", err)
-	}
-
-	// Vérifier le statut de la réponse
-	if resp.StatusCode != http.StatusOK {
-		// Si le statut n'est pas 200, retourner une erreur
-		// et afficher le corps de la réponse pour le débogage
-		fmt.Printf("DEBUGG : Status code: %d\n", resp.StatusCode)
-		fmt.Printf("DEBUGG : Response body: %s\n", string(body))
-		return nil, fmt.Errorf("failed to fetch user roles, status: %s, response: %s", resp.Status, string(body))
-	}
-
-	// Décoder la réponse JSON
-	var result map[string]interface{}
-	err = json.Unmarshal(body, &result)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode response JSON: %v", err)
-	}
-
-	return result, nil
-}
-
-var appointment struct {
-	ID        int       `json:"id"`
-	Guest     string    `json:"guest"`
-	Host      string    `json:"host"`
-	Type      int       `json:"type"`
-	School    string    `json:"school"`
-	Title     string    `json:"title"`
-	StartTime time.Time `json:"start_time"`
-	EndTime   time.Time `json:"end_time"`
+	json.NewEncoder(w).Encode(map[string]string{"message": "Rendez-vous anonyme créé et email envoyé avec succès"})
 }
 
 // Fonction pour exporter le calendrier au format ICS
-func ExportCalendarICSFile(w http.ResponseWriter, r *http.Request) {
-	unique_name := r.URL.Query().Get("unique_name")
-	if unique_name == "" {
-		http.Error(w, "unique_name is missing", http.StatusBadRequest)
-		return
-	}
-	// Récupérer les rendez-vous de l'utilisateur
-	query := `
-	SELECT
-		a.id,
-		a.guest,
-		a.host,
-		a.type,
-		a.school,
-		a.title,
-		a.start_time,
-		a.end_time
-		FROM
-		appointment a
-		JOIN usr g ON a.guest = g.id
-		JOIN usr h ON a.host = h.id
-		WHERE g.unique_name = $1
-		ORDER BY a.start_time DESC`
-	// Exécuter la requête
-	err := database.GetConn().QueryRow(query, unique_name).Scan(
-		&appointment.ID,
-		&appointment.Guest,
-		&appointment.Host,
-		&appointment.Type,
-		&appointment.School,
-		&appointment.Title,
-		&appointment.StartTime,
-		&appointment.EndTime)
-	if err == sql.ErrNoRows {
-		http.Error(w, "No appointments found", http.StatusNotFound)
-		return
-	}
-	if err != nil {
-		http.Error(w, "Failed to query database: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-	// Créer le contenu du fichier ICS
-	icsContent := fmt.Sprintf(`BEGIN:VCALENDAR
-		VERSION:2.0
-		PRODID:-//Ilulu//NONSGML v1.0//EN
-		METHOD:PUBLISH
-		BEGIN:VEVENT
-		UID:%d
-		SUMMARY:%s
-		DTSTART;TZID=Europe/Paris:%s
-		DTEND;TZID=Europe/Paris:%s
-		DESCRIPTION:%s
-		STATUS:CONFIRMED
-		SEQUENCE:0
-		BEGIN:VALARM
-		TRIGGER:-PT15M
-		DESCRIPTION:Reminder
-		ACTION:DISPLAY
-		END:VALARM
-		END:VEVENT
-		END:VCALENDAR`, appointment.ID, appointment.Title, appointment.StartTime.Format("20060102T150405"), appointment.EndTime.Format("20060102T150405"), appointment.Title)
-	// Définir les en-têtes de la réponse
-	w.Header().Set("Content-Type", "text/calendar")
-	w.Header().Set("Content-Disposition", "attachment; filename=appointment.ics")
-	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(icsContent)))
-	w.Header().Set("Accept-Ranges", "bytes")
-	w.Header().Set("Last-Modified", time.Now().Format(http.TimeFormat))
-	w.Header().Set("ETag", fmt.Sprintf("%x", time.Now().Unix()))
-	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
-	w.Header().Set("Pragma", "no-cache")
-
-	fmt.Printf("ICS Content: %s\n", icsContent)
-}
-
 func ExportCalendar(w http.ResponseWriter, r *http.Request) {
 	uniqueName := r.URL.Query().Get("unique_name")
 	if uniqueName == "" {
@@ -589,57 +426,6 @@ func ExportCalendar(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(cal.Serialize()))
 }
 
-// / import calendrier
-func ImportCalendar(w http.ResponseWriter, r *http.Request) {
-	r.ParseMultipartForm(10 << 20) // Limite de 10 Mo
-
-	file, handler, err := r.FormFile("icsFile")
-	if err != nil {
-		http.Error(w, "Erreur lors du téléchargement du fichier", http.StatusBadRequest)
-		return
-	}
-	defer file.Close()
-
-	// Optionnel : sauvegarder temporairement le fichier
-	tempFile, err := os.CreateTemp("", "upload-*.ics")
-	if err != nil {
-		http.Error(w, "Erreur lors de la création du fichier temporaire", http.StatusInternalServerError)
-		return
-	}
-	defer os.Remove(tempFile.Name()) // Nettoyage
-	defer tempFile.Close()
-
-	io.Copy(tempFile, file)
-	tempFile.Seek(0, 0)
-
-	cal, err := ical.ParseCalendar(tempFile)
-	if err != nil {
-		http.Error(w, "Erreur lors de la lecture du fichier ICS", http.StatusInternalServerError)
-		return
-	}
-
-	for _, event := range cal.Events() {
-		summary := event.GetProperty("SUMMARY") // Accès au résumé
-		start := event.GetProperty("DTSTART")   // Accès à la date de début
-		end := event.GetProperty("DTEND")       // Accès à la date de fin
-
-		fmt.Printf("Event: %s, Start: %s, End: %s\n",
-			summary.Value,
-			start.Value,
-			end.Value,
-		)
-
-		// Ici : insérez les données dans votre base (dans un modèle Appointment par ex.)
-	}
-
-	response := map[string]string{
-		"message": fmt.Sprintf("Fichier %s traité avec succès", handler.Filename),
-		"status":  "success",
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
-}
-
 // //// AUTOCOMPLETE : GetAzureUsers function
 func GetAzureUsers(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("DEBUGG : GetAzureUsers function called")
@@ -671,7 +457,6 @@ func GetAzureUsers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 }
-
 func getAzureToken() (string, error) {
 	fmt.Println("DEBUGG : Starting getAzureToken function")
 
@@ -710,7 +495,6 @@ func getAzureToken() (string, error) {
 	}
 	return result.AccessToken, nil
 }
-
 func getGroupMembersFiltered(groupID, token, filter string) ([]map[string]string, error) {
 	baseURL := fmt.Sprintf("https://graph.microsoft.com/v1.0/groups/%s/members?$select=id,mail,givenName,surname", groupID)
 	users := []map[string]string{}

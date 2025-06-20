@@ -29,7 +29,6 @@ const routes = [
       // /user
       {
         path: "user",
-        component: () => import("src/layouts/EmptyLayout.vue"),
         children: [
           {
             path: "",
@@ -44,12 +43,10 @@ const routes = [
       // /director
       {
         path: "director",
-        component: () => import("src/layouts/EmptyLayout.vue"),
         meta: { checkRole: true, requiredRole: 1 },
         children: [
           {
             path: "settings",
-            component: () => import("src/layouts/EmptyLayout.vue"),
             children: [
               {
                 path: "",
@@ -62,7 +59,6 @@ const routes = [
       // /admin
       {
         path: "admin",
-        component: () => import("src/layouts/EmptyLayout.vue"),
         meta: { checkRole: true, requiredRole: 0 },
         children: [
           {

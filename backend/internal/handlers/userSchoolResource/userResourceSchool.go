@@ -9,8 +9,6 @@ import (
 	"backend/internal/database"
 )
 
-// fetch resource from usr
-
 func FetchUserSchoolResource(w http.ResponseWriter, r *http.Request) {
 	fmt.Printf("DEBUG: FetchUserResourceSchool without params\n")
 	query := `
@@ -188,7 +186,6 @@ func FetchUserSchoolResourceWithSchoolID(w http.ResponseWriter, r *http.Request)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(result)
 }
-
 func FetchUserSchoolResourceWithUserID(w http.ResponseWriter, r *http.Request) {
 	fmt.Printf("DEBUG: FetchUserResourceSchool userID: %s\n", r.URL.Query().Get("userID"))
 	userID := r.URL.Query().Get("userID")
@@ -301,7 +298,6 @@ func FetchUserSchoolResourceWithUserID(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(userResources)
 }
-
 func FetchUserSchoolResourceWithResourceID(w http.ResponseWriter, r *http.Request) {
 	fmt.Printf("DEBUG: FetchUserResourceSchool resourceID: %s\n", r.URL.Query().Get("resourceID"))
 	resourceID := r.URL.Query().Get("resourceID")
@@ -403,7 +399,6 @@ func FetchUserSchoolResourceWithResourceID(w http.ResponseWriter, r *http.Reques
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(userResources)
 }
-
 func FetchUserFromUSR(w http.ResponseWriter, r *http.Request) {
 	fmt.Printf("DEBUG: FetchUserFromUSR\n")
 	// Récupérer les paramètres
@@ -470,7 +465,6 @@ func FetchUserFromUSR(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(users)
 }
-
 func FetchAllRessourcesFromUSR(w http.ResponseWriter, r *http.Request) {
 	s := r.URL.Query().Get("schoolID")
 
@@ -536,7 +530,6 @@ func FetchAllRessourcesFromUSR(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resources)
 }
-
 func FetchResourceFromUSR(w http.ResponseWriter, r *http.Request) {
 	s := r.URL.Query().Get("schoolID")
 
@@ -604,7 +597,6 @@ func FetchResourceFromUSR(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resources)
 }
-
 func FetchSchoolFromUSR(w http.ResponseWriter, r *http.Request) {
 	s := r.URL.Query().Get("schoolID")
 
@@ -670,7 +662,6 @@ func FetchSchoolFromUSR(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resources)
 }
-
 func FetchUserBySchoolID(w http.ResponseWriter, r *http.Request) {
 	s := r.URL.Query().Get("schoolID")
 
@@ -788,7 +779,6 @@ func FetchUserBySchoolID(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(userResources)
 
 }
-
 func FetchUserResource(w http.ResponseWriter, r *http.Request) {
 	schoolID := r.URL.Query().Get("schoolID")
 	fmt.Printf("DEBUG: FetchUserResource userResourceID: %s\n", schoolID)
@@ -903,23 +893,29 @@ func FetchUserResource(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(userResources)
 }
-
 func AddUserSchoolResource(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("DEBUG: AddUserSchoolResource\n")
+	fmt.Printf("DEBUG: UpdateUserSchoolResource\n")
+	userID := r.URL.Query().Get("userID")
+	schoolID := r.URL.Query().Get("schoolID")
+	resourceID := r.URL.Query().Get("resourceID")
 
-	var userSchoolResource struct {
-		UserID     string `json:"user_id"`
-		ResourceID string `json:"resource_id"`
-		SchoolID   string `json:"school_id"`
-	}
-
-	if err := json.NewDecoder(r.Body).Decode(&userSchoolResource); err != nil {
-		http.Error(w, "Failed to decode request body: "+err.Error(), http.StatusBadRequest)
+	if userID == "" || schoolID == "" || resourceID == "" {
+		http.Error(w, "Missing required fields", http.StatusBadRequest)
 		return
 	}
-
-	if userSchoolResource.UserID == "" || userSchoolResource.ResourceID == "" || userSchoolResource.SchoolID == "" {
-		http.Error(w, "Missing required fields", http.StatusBadRequest)
+	userIDInt, err := strconv.Atoi(userID)
+	if err != nil {
+		http.Error(w, "Invalid userID: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	schoolIDInt, err := strconv.Atoi(schoolID)
+	if err != nil {
+		http.Error(w, "Invalid schoolID: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	resourceIDInt, err := strconv.Atoi(resourceID)
+	if err != nil {
+		http.Error(w, "Invalid resourceID: "+err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -928,7 +924,7 @@ func AddUserSchoolResource(w http.ResponseWriter, r *http.Request) {
 	user_school_resource (user_id, school_id, resource_id) 
 	VALUES ($1, $2, $3)`
 
-	result, err := database.GetConn().Exec(query, userSchoolResource.UserID, userSchoolResource.SchoolID, userSchoolResource.ResourceID)
+	result, err := database.GetConn().Exec(query, userIDInt, schoolIDInt, resourceIDInt)
 	if err != nil {
 		http.Error(w, "Failed to execute query: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -943,7 +939,6 @@ func AddUserSchoolResource(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{"rowsAffected": rowsAffected})
 }
-
 func UpdateUserSchoolResource(w http.ResponseWriter, r *http.Request) {
 	fmt.Printf("DEBUG: UpdateUserSchoolResource\n")
 	userID := r.URL.Query().Get("userID")
@@ -990,7 +985,6 @@ func UpdateUserSchoolResource(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{"rowsAffected": rowsAffected})
 }
-
 func DeleteUserSchoolResource(w http.ResponseWriter, r *http.Request) {
 	fmt.Printf("DEBUG: DeleteUserSchoolResource\n")
 	userID := r.URL.Query().Get("userID")
@@ -1081,7 +1075,6 @@ func DeleteUserSchoolResource(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{"rowsAffected": rowsAffected})
 }
-
 func AddUserSchoolResourceTrigger(w http.ResponseWriter, r *http.Request, id int) {
 	fmt.Printf("DEBUG: AddUserSchoolResourceTrigger\n")
 	schoolID := r.URL.Query().Get("schoolID")
