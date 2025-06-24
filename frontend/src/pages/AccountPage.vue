@@ -163,23 +163,23 @@
           <div class="col-auto">
             <q-btn dense icon="delete" color="negative" flat @click="removeWorkSchedule(day, index)" />
           </div>
-              </div>
-              <!-- Ajouter une plage -->
-              <q-btn
-          icon="add"
-          label="Ajouter une plage"
-          dense
-          flat
-          color="secondary"
-          @click="addAvailability(day)"
-              />
             </div>
+            <!-- Ajouter une plage -->
             <q-btn
-              label="Enregistrer"
-              color="secondary"
-              class="q-mt-md"
-              @click="saveWorkSchedule()"
-            />
+            icon="add"
+            label="Ajouter une plage"
+            dense
+            flat
+            color="secondary"
+            @click="addAvailability(day)"
+                />
+              </div>
+              <q-btn
+                label="Enregistrer"
+                color="secondary"
+                class="q-mt-md"
+                @click="saveWorkSchedule()"
+              />
           </div>
         </q-card-section>
       </q-card>
@@ -218,22 +218,11 @@
                 <q-input
                   v-model="newUnavailability.day"
                   label="Jour"
-                  outlined dense class="q-mb-sm"
-                  mask="####-##-##"
-                  placeholder="DD-MM-YYYY"
-                >
-                  <template v-slot:append>
-                  <q-icon name="event" class="cursor-pointer" @click="showDatePicker = true" />
-                  </template>
+                  type="date"
+                  outlined
+                  dense
+                  class="q-mb-sm">
                 </q-input>
-                <q-popup-proxy v-model="showDatePicker">
-                  <q-date
-                  v-model="newUnavailability.day"
-                  mask="YYYY-MM-DD"
-                  color="primary"
-                  @input="showDatePicker = !showDatePicker"
-                  />
-                </q-popup-proxy>
                 <q-input
                   v-model="newUnavailability.start"
                   label="Début"
@@ -246,44 +235,36 @@
                   type="time"
                   outlined dense class="q-mb-sm"
                 />
-                <q-checkbox
-                  v-model="newUnavailability.recurrent"
-                  label="Récurrent"
-                  color="primary"
-                  class="q-mb-md"
-                  :val="true"
-                />
                 </q-form>
               </q-card-section>
-              <q-card-actions>
-                <q-btn
-                  flat
-                  label="Ajouter"
-                  color="primary"
-                  class="q-mr-auto"
-                    @click="addUnavailability(); showDialog = false"
-                />
+              <q-card-actions align="right">
                 <q-btn
                   flat
                   label="Annuler"
-                  color="negative"
-                  class="q-ml-auto"
+                  color="primary"
                   @click="showDialog = false"
+                />
+                <q-btn
+                  flat
+                  label="Ajouter"
+                  color="secondary"
+                    @click="addUnavailability(); showDialog = false"
                 />
               </q-card-actions>
               </q-card>
             </q-dialog>
             <q-list bordered separator>
               <q-item v-for="(item, index) in unavailabilities" :key="index">
-                <q-item-section>{{ item.label }} le {{ item.date }} de {{ item.start }} à {{ item.end }}</q-item-section>
+                <q-item-section>{{ item.reason }} le {{ item.date }} de {{ item.start }} à {{ item.end }}</q-item-section>
                 <q-item-section side>
-                  <q-btn flat icon="delete" color="negative" @click="removeUnavailability(index)" />
+                    <q-btn v-if="item.reason != 'Rendez-vous'" flat icon="delete" color="negative" @click="removeUnavailability(item.id)" />
                 </q-item-section>
               </q-item>
             </q-list>
           </div>
         </q-card-section>
       </q-card>
+      <!-- dialog pour modifier un rendez-vous -->
       <q-dialog v-model="showEditDialog" persistent>
         <q-card style="min-width: 400px">
           <q-card-section>
@@ -322,8 +303,8 @@
 
 <script setup>
 import { ref, onMounted } from "vue";
-import { useRouter } from "vue-router";
 import { useQuasar } from "quasar";
+import { fetchUserUnavailabilities, insertUnavailability, deleteUnavailability } from "src/services/unavailabilities";
 import {
   deleteAppointment,
   fetchAppointmentsByUserID,
@@ -369,7 +350,6 @@ const newUnavailability = ref({
 });
 const user = getUser();
 const isMobile = ref(window.innerWidth <= 768);
-const router = useRouter();
 const $q = useQuasar();
 const appointments = ref([]);
 const unavailabilities = ref([
@@ -437,11 +417,81 @@ const editedAppointment = ref({
   start: '',
   end: '',
 });
-
 const availabilities = ref([]);
 const noAvailabilitiesMessage = ref("");
 
+async function loadUnavailabilities() {
+  try {
+    const data = await fetchUserUnavailabilities(user.unique_name);
+    unavailabilities.value = data
+      .filter(item => item.reason.toLowerCase() !== 'rendez-vous')
+      .map((item) => ({
+      id: item.id,
+      label: item.label,
+      date: new Date(item.date).toLocaleDateString('fr-FR'),
+      reason: item.reason,
+      start: item.start_time.slice(11, 16),
+      end: item.end_time.slice(11, 16),
+      }));
+  } catch (error) {
+    console.error("Failed to fetch unavailabilities:", error);
+    $q.notify({
+      type: "negative",
+      message: "Erreur lors du chargement des indisponibilités",
+    });
+  }
+}
 
+async function addUnavailability() {
+  if (!newUnavailability.value.day || !newUnavailability.value.start || !newUnavailability.value.end) {
+    $q.notify({
+      type: "negative",
+      message: "Veuillez remplir tous les champs",
+    });
+    return;
+  }
+
+  const payload = {
+    user_id: user.unique_name,
+    day: newUnavailability.value.day,
+    start_time: newUnavailability.value.start,
+    end_time: newUnavailability.value.end,
+    reason: "Block"
+  };
+
+  try {
+    await insertUnavailability(payload);
+    $q.notify({
+      type: "positive",
+      message: "Indisponibilité ajoutée avec succès",
+    });
+    loadUnavailabilities();
+    newUnavailability.value = { day: '', start: '', end: '' };
+  } catch (error) {
+    console.error("Failed to add unavailability:", error);
+    $q.notify({
+      type: "negative",
+      message: "Erreur lors de l'ajout de l'indisponibilité",
+    });
+  }
+}
+
+async function removeUnavailability(id) {
+  try {
+    await deleteUnavailability(id);
+    $q.notify({
+      type: "positive",
+      message: "Indisponibilité supprimée avec succès",
+    });
+    loadUnavailabilities();
+  } catch (error) {
+    console.error("Failed to delete unavailability:", error);
+    $q.notify({
+      type: "negative",
+      message: "Erreur lors de la suppression de l'indisponibilité",
+    });
+  }
+}
 
 async function loadAvailabilities(appointment) {
   const hostID = appointment.host;
@@ -748,6 +798,7 @@ function viewDetails(row) {
 onMounted(() => {
   loadUserAppointments();
   loadWorkSchedules();
+  loadUnavailabilities();
 });
 </script>
 

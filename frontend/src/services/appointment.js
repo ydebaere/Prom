@@ -7,6 +7,27 @@ const headers = {
 
 import { format } from "date-fns";
 
+export async function getSchedules(school, date, resource) {
+  const formattedDate = format(new Date(date), "yyyy-MM-dd");
+  const url = `${server}anonymous-schedules?schoolID=${school}&date=${formattedDate}&resourceID=${resource}`;
+  try {
+
+    const response = await fetch(url, {
+      method: "GET",
+      headers,
+    });
+    if (!response.ok) {
+      throw new Error("Network response was not ok");
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Error fetching slots:", error);
+    throw error;
+  }
+}
+
 export async function getAvailabilities(user, date, duration) {
   const formattedDate = format(new Date(date), "yyyy-MM-dd");
   const url = `${server}availability?user=${user}&date=${formattedDate}&resource=${duration}`;

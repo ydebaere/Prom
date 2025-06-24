@@ -179,7 +179,7 @@ import { useQuasar } from "quasar";
 import { fetchSchools } from "src/services/school";
 import { fetchAgents as fetchAgents } from "src/services/user";
 import { fetchResources } from "src/services/resource";
-import { getAvailabilities, insertAppointment } from "src/services/appointment";
+import { getAvailabilities, insertAppointment, getSchedules } from "src/services/appointment";
 import { useRoute, useRouter } from "vue-router";
 import { getUser } from "src/services/api";
 
@@ -190,12 +190,18 @@ const model1 = ref(null);
 const model2 = ref(null);
 const model4 = ref(null);
 const model5 = ref(null);
+const availabilities = ref([]);
+const timing = ref(null);
+const timings = [
+  "09:00", "09:30", "10:00", "10:30", "11:00", "11:30",
+  "12:00", "13:00", "13:30", "14:00", "14:30", "15:00",
+  "15:30", "16:00", "17:00", "17:30", "18:00", "18:30",
+"19:00", "19:30", "20:00", "20:30"];
 const model6 = ref(null);
 const date = ref(null);
 const schools = ref([]);
 const resources = ref([]);
 const ressources = ref([]);
-const availabilities = ref([]);
 const noAvailabilitiesMessage = ref("");
 const dense = ref(false);
 const denseOpts = ref(false);
@@ -203,12 +209,6 @@ const isMobile = ref(window.innerWidth <= 768);
 const userData = getUser();
 const showEmailDialog = ref(false);
 const guestEmail = ref("");
-const timings = [
-  "09:00", "09:30", "10:00", "10:30", "11:00", "11:30",
-  "12:00", "13:00", "13:30", "14:00", "14:30", "15:00",
-  "15:30", "16:00", "17:00", "17:30", "18:00", "18:30",
-  "19:00", "19:30", "20:00", "20:30", "21:00"]
-const timing = ref(null);
 
 window.addEventListener("resize", () => {
   isMobile.value = window.innerWidth <= 768;
@@ -344,41 +344,23 @@ function formatLabel(option) {
   return `${option.given_name} ${option.family_name}`;
 }
 
-// function generateTimeSlots(startTime, endTime, duration) {
-//   const slots = [];
-//   let currentTime = new Date(startTime);
-
-//   while (currentTime < endTime) {
-//     let nextTime = new Date(currentTime.getTime() + duration * 60000);
-
-//     // Exclure la pause entre 12h00 et 13h00
-//     if (currentTime.getHours() === 12) {
-//       currentTime.setHours(13, 0, 0, 0);
-//       continue;
-//     }
-
-//     if (nextTime.getHours() === 12) {
-//       nextTime.setHours(13, 0, 0, 0);
-//     }
-
-//     // Ajouter le créneau s'il est dans les heures valides
-//     if (nextTime <= endTime) {
-//       slots.push({
-//         start: currentTime.toTimeString().slice(0, 5),
-//         end: nextTime.toTimeString().slice(0, 5),
-//       });
-//     }
-
-//     currentTime = nextTime;
-//   }
-//   return slots;
-// }
-
 async function loadAvailabilities() {
   try {
     if (!model4.value) {
-      console.error("No resource selected");
-      return;
+      console.log("No resource selected");
+    //   const slotsResponse = await getSchedules(
+    //   model1.value.id,
+    //   date.value,
+    //   );
+    //   availabilities.value = (slotsResponse || []).map((slot) => ({
+    //   start: slot.start,
+    //   end: slot.end,
+    //   label: slot.label,
+    // }));
+    // noAvailabilitiesMessage.value = availabilities.value.length
+    //   ? ""
+    //   : "Pas de disponibilités";
+    return;
     }
     console.log("Model 2:", model2.value);
     const duration = model2.value.id;
@@ -530,19 +512,24 @@ async function confirmEmail() {
         body: JSON.stringify(anonymousAppointment),
       }
     );
-
-    // if (!response.ok) {
-    //   throw new Error("Network response was not ok");
-    // }
-
     if (response.status === 422) {
       $q.dialog({
-        title: "Aucune disponibilité",
-        message: "Pas de disponibilités le jour choisi, veuillez choisir une autre date.",
-        ok: "Fermer"
+      title: "Aucune disponibilité",
+      message: "Pas de disponibilités pour cette heure/date, veuillez choisir une autre heure/date.",
+      ok: "Fermer"
       });
-      model4.value = null;
-      model5.value = null;
+      timing.value = null;
+      date.value = null;
+      showEmailDialog.value = false;
+      return;
+    }
+    else if (response.status === 409) {
+      $q.dialog({
+      title: "Rendez-vous déjà existant",
+      message: "Vous avez déjà un rendez-vous non confirmé. Veuillez vérifier votre email.",
+      ok: "Fermer"
+      });
+      timing.value = null;
       date.value = null;
       showEmailDialog.value = false;
       return;
@@ -553,7 +540,6 @@ async function confirmEmail() {
       message: `Rendez-vous ajouté avec succès n'oubliez pas de le confirmer via l'email recu!`,
       position: "center",
     });
-
     showEmailDialog.value = false;
     route.push("/");
   } catch (error) {

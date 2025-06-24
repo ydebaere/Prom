@@ -47,6 +47,25 @@ export async function fetchUnavailabilities() {
   }
 }
 
+export async function fetchUserUnavailabilities(userID) {
+  try {
+    if (!token) {
+      throw new Error("No token found");
+    }
+    const response = await fetch(`${server}unavailabilities?userID=${userID}`, {
+      method: "GET",
+      headers,
+    });
+    if (!response.ok) {
+    }
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Error fetching unavailabilities:", error);
+    throw error;
+  }
+}
+
 export async function insertUnavailability(data) {
   try {
     if (!token) {

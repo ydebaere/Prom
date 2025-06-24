@@ -327,8 +327,9 @@ func afterInsertSchoolTrigger(id int) {
 		return
 	}
 	resourceID2 := resourceID1 + 1
+	resourceID3 := resourceID2 + 1
 
-	var name1, name2, description1, description2 string
+	var name1, name2, name3, description1, description2, description3 string
 	var duration int
 	var visible bool
 	// Define default values for the resource
@@ -336,6 +337,9 @@ func afterInsertSchoolTrigger(id int) {
 	description1 = "Invité " + schoolName
 	name2 = "user " + schoolName
 	description2 = "Utilisateur " + schoolName
+	name3 = "secretariat " + schoolName
+	description3 = "Secrétariat " + schoolName
+	visible3 := true
 
 	query := `
 	INSERT INTO resource (id, name, description, school, duration, visible)
@@ -346,6 +350,11 @@ func afterInsertSchoolTrigger(id int) {
 		return
 	}
 	_, err = database.GetConn().Exec(query, resourceID2, name2, description2, id, duration, visible)
+	if err != nil {
+		fmt.Println("Error inserting user resource for new school:", err)
+		return
+	}
+	_, err = database.GetConn().Exec(query, resourceID3, name3, description3, id, duration, visible3)
 	if err != nil {
 		fmt.Println("Error inserting user resource for new school:", err)
 		return

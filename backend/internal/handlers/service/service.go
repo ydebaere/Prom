@@ -21,6 +21,167 @@ import (
 	"strconv"
 )
 
+type TimeSlot struct {
+	Start string `json:"start"`
+	End   string `json:"end"`
+	Label string `json:"label"`
+}
+
+func GetAnonymousAvailableSlots(w http.ResponseWriter, r *http.Request) {
+	fmt.Printf("DEBUGG : GetAnonymousAvailableSlots function called")
+	schoolID := r.URL.Query().Get("schoolID")
+	resourceID := r.URL.Query().Get("resourceID")
+	dateStr := r.URL.Query().Get("date")
+
+	if schoolID == "" || resourceID == "" || dateStr == "" {
+		http.Error(w, "Paramètres manquants : schoolID, resourceID, date requis", http.StatusBadRequest)
+		return
+	}
+
+	schoolIDInt, err := strconv.Atoi(schoolID)
+	if err != nil {
+		http.Error(w, "Format de schoolID invalide", http.StatusBadRequest)
+		return
+	}
+
+	resourceIDInt, err := strconv.Atoi(resourceID)
+	if err != nil {
+		resourceIDInt = 12 // Secretariat par défaut
+	}
+
+	date, err := time.Parse("2006-01-02", dateStr)
+	if err != nil {
+		http.Error(w, "Format de date invalide. Format attendu : YYYY-MM-DD", http.StatusBadRequest)
+		return
+	}
+
+	dayOfWeek := strings.ToLower(date.Weekday().String())
+	dayMap := map[string]string{
+		"monday":    "lundi",
+		"tuesday":   "mardi",
+		"wednesday": "mercredi",
+		"thursday":  "jeudi",
+		"friday":    "vendredi",
+		"saturday":  "samedi",
+		"sunday":    "dimanche",
+	}
+	day := dayMap[dayOfWeek]
+
+	db := database.GetConn()
+
+	// Étape 1 : récupérer la durée du slot et les agents liés
+	queryAgents := `
+		SELECT DISTINCT usr.id, r.duration
+		FROM user_school_resource usr_res
+		JOIN resource r ON usr_res.resource_id = r.id
+		JOIN usr ON usr.id = usr_res.user_id
+		WHERE r.school = $1 AND r.id = $2
+	`
+	rows, err := db.Query(queryAgents, schoolIDInt, resourceIDInt)
+	if err != nil {
+		http.Error(w, "Erreur lors de la récupération des agents : "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	type Agent struct {
+		ID       int
+		Duration int
+	}
+	var agents []Agent
+	for rows.Next() {
+		var a Agent
+		if err := rows.Scan(&a.ID, &a.Duration); err != nil {
+			http.Error(w, "Erreur lors du scan des agents : "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		agents = append(agents, a)
+	}
+
+	var slots []TimeSlot
+
+	for _, agent := range agents {
+		// Étape 2 : récupérer les horaires de travail
+		queryWork := `
+			SELECT start_time, end_time
+			FROM work_schedule
+			WHERE user_id = $1 AND day_of_week = $2
+		`
+		workRows, err := db.Query(queryWork, agent.ID, day)
+		if err != nil {
+			continue
+		}
+		defer workRows.Close()
+
+		for workRows.Next() {
+			var start, end time.Time
+			if err := workRows.Scan(&start, &end); err != nil {
+				continue
+			}
+
+			// reconstruire les timestamps avec la bonne date
+			start = time.Date(date.Year(), date.Month(), date.Day(), start.Hour(), start.Minute(), 0, 0, time.Local)
+			end = time.Date(date.Year(), date.Month(), date.Day(), end.Hour(), end.Minute(), 0, 0, time.Local)
+
+			// Étape 3 : récupérer indisponibilités et rendez-vous
+			queryUnavail := `
+				SELECT start_time, end_time
+				FROM unavailabilities
+				WHERE user_id = $1 AND date = $2
+			`
+			unav, _ := db.Query(queryUnavail, agent.ID, dateStr)
+			var blocks []TimeSlot
+			for unav.Next() {
+				var bStart, bEnd time.Time
+				unav.Scan(&bStart, &bEnd)
+				bStart = time.Date(date.Year(), date.Month(), date.Day(), bStart.Hour(), bStart.Minute(), 0, 0, time.Local)
+				bEnd = time.Date(date.Year(), date.Month(), date.Day(), bEnd.Hour(), bEnd.Minute(), 0, 0, time.Local)
+				blocks = append(blocks, TimeSlot{Start: bStart.Format(time.RFC3339), End: bEnd.Format(time.RFC3339)})
+			}
+			unav.Close()
+
+			queryApp := `
+				SELECT start_time, end_time
+				FROM appointment
+				WHERE host = $1 AND DATE(start_time) = $2 AND status = true
+			`
+			apps, _ := db.Query(queryApp, agent.ID, dateStr)
+			for apps.Next() {
+				var aStart, aEnd time.Time
+				apps.Scan(&aStart, &aEnd)
+				blocks = append(blocks, TimeSlot{Start: aStart.Format(time.RFC3339), End: aEnd.Format(time.RFC3339)})
+			}
+			apps.Close()
+
+			// Étape 4 : découper les créneaux
+			for t := start; t.Add(time.Duration(agent.Duration)*time.Minute).Before(end) || t.Add(time.Duration(agent.Duration)*time.Minute).Equal(end); t = t.Add(time.Duration(agent.Duration) * time.Minute) {
+				slotStart := t
+				slotEnd := t.Add(time.Duration(agent.Duration) * time.Minute)
+
+				conflict := false
+				for _, b := range blocks {
+					bStart, _ := time.Parse(time.RFC3339, b.Start)
+					bEnd, _ := time.Parse(time.RFC3339, b.End)
+					if slotStart.Before(bEnd) && slotEnd.After(bStart) {
+						conflict = true
+						break
+					}
+				}
+				if !conflict {
+					slots = append(slots, TimeSlot{
+						Start: slotStart.Format("15:04"),
+						End:   slotEnd.Format("15:04"),
+						Label: fmt.Sprintf("%s - %s", slotStart.Format("15:04"), slotEnd.Format("15:04")),
+					})
+				}
+			}
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(slots)
+}
+
 // Structure pour capturer l'unique_name envoyé dans la requête
 type AnonymousAppointmentPayload struct {
 	Unique_name string `json:"unique_name"`
@@ -142,6 +303,7 @@ func CreateAnonymousAppointment(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Échec du décodage du corps de la requête", http.StatusBadRequest)
 		return
 	}
+	fmt.Printf("DEBUGG : Payload received: %+v\n", payload)
 
 	// Générer un token unique
 	token, err := GenerateUniqueToken()
@@ -223,82 +385,132 @@ func CreateAnonymousAppointment(w http.ResponseWriter, r *http.Request) {
 		fmt.Printf("DEBUGG : User role inserted for user ID: %d\n", userID)
 	}
 
-	// Calculer l'heure de fin d'un rendez-vous
-	startTime, err := time.Parse("2006-01-02 15:04:05", payload.StartTime)
+	var status bool
+	// Vérifier si l'utilisateur a déjà un rendez-vous non confirmé
+	existsQuery := `
+	SELECT EXISTS (
+		SELECT 1
+		FROM appointment
+		WHERE guest = $1
+		AND status = false
+	)`
+	err = database.GetConn().QueryRow(existsQuery, userID).Scan(&status)
 	if err != nil {
-		http.Error(w, "Échec de l'analyse de l'heure de début: "+err.Error(), http.StatusBadRequest)
+		http.Error(w, "Erreur lors de la vérification de l'existence du rendez-vous: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
-	endTime := startTime.Add(30 * time.Minute) // Ajoute 30 minutes à l'heure de début par défaut (@secretariat)
-
-	// Requête pour trouver les utilisateurs ayant le rôle de secrétaire, liés à l’école, et disponibles
-	hostQuery := `
-	SELECT usr.id
-	FROM usr
-	JOIN user_school_resource usr_res ON usr.id = usr_res.user_id
-	JOIN work_schedule ws ON usr.id = ws.user_id
-	WHERE usr_res.school_id = $1
-	AND usr_res.resource_id = 0
-	AND ws.day_of_week = $2
-	AND ws.start_time <= $3::time
-	OR ws.end_time >= $4::time
-	AND usr.id NOT IN (
-		SELECT user_id
-		FROM unavailabilities
-		WHERE date = $5::date
-		AND ($3::time, $4::time) OVERLAPS (start_time, end_time)
-	)
-	ORDER BY RANDOM()
-	LIMIT 1;
-	`
-
-	dayOfWeek := strings.ToLower(startTime.Weekday().String())
-	var hostID int
-	err = database.GetConn().QueryRow(hostQuery, payload.SchoolID, dayOfWeek, startTime.Format("15:04:05"), endTime.Format("15:04:05"), startTime.Format("2006-01-02")).Scan(&hostID)
-	if err != nil {
-		// Utilisation du code d'erreur HTTP 422 (Unprocessable Entity) pour indiquer qu'aucun hôte n'est disponible
+	if status {
+		// Si l'utilisateur a déjà un rendez-vous, on renvoie une erreur
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusUnprocessableEntity)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Aucun hôte disponible trouvé : " + err.Error()})
+		w.WriteHeader(http.StatusConflict)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Vous avez déjà un rendez-vous non confirmé. Veuillez vérifier vos emails/spams."})
 		return
 	}
+	if !status {
+		// Calculer l'heure de fin d'un rendez-vous
+		startTime, err := time.Parse("2006-01-02 15:04:05", payload.StartTime)
+		if err != nil {
+			http.Error(w, "Échec de l'analyse de l'heure de début: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		// Ajoute 30 minutes à l'heure de début par défaut (@secretariat)
+		endTime := startTime.Add(30 * time.Minute)
 
-	// Insérer le rendez-vous
-	query := `
+		// Requete pour trouver le ressourceID du secrétariat
+		secretariatResourceName := "%secretariat%"
+
+		resourceQuery := `
+		SELECT id
+		FROM resource
+		WHERE school = $1 
+		AND name ILIKE $2
+		`
+		var resourceID int
+		err = database.GetConn().QueryRow(resourceQuery, payload.SchoolID, secretariatResourceName).Scan(&resourceID)
+		if err != nil && err != sql.ErrNoRows {
+			http.Error(w, "Échec de la requête à la base de données: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		fmt.Printf("DEBUGG : Resource ID found: %d\n", resourceID)
+
+		// Requête pour trouver les utilisateurs ayant le rôle de secrétaire, liés à l’école, et disponibles
+		hostQuery := `
+		SELECT usr.id
+		FROM usr
+			JOIN user_school_resource usr_res ON usr.id = usr_res.user_id
+			JOIN work_schedule ws ON usr.id = ws.user_id
+		WHERE usr_res.school_id = $1
+		AND usr_res.resource_id = $2
+		AND ws.day_of_week = $3
+		AND ws.start_time <= $4::time
+		AND ws.end_time >= $5::time
+		AND usr.id NOT IN (
+			SELECT user_id
+			FROM unavailabilities
+			WHERE date = $6::date
+			AND (start_time, end_time) OVERLAPS ($4::time, $5::time)
+		)
+		ORDER BY RANDOM()
+		LIMIT 1`
+		dayOfWeek := strings.ToLower(startTime.Weekday().String())
+		dayMap := map[string]string{
+			"monday":    "lundi",
+			"tuesday":   "mardi",
+			"wednesday": "mercredi",
+			"thursday":  "jeudi",
+			"friday":    "vendredi",
+			"saturday":  "samedi",
+			"sunday":    "dimanche",
+		}
+		day := dayMap[dayOfWeek]
+
+		var hostID int
+		fmt.Printf("DEBUGG : with params schoolID=%d, resourceID=%d, dayOfWeek=%s, startTime=%s, endTime=%s\n", payload.SchoolID, resourceID, dayOfWeek, startTime.Format("15:04"), endTime.Format("15:04"))
+		err = database.GetConn().QueryRow(hostQuery, payload.SchoolID, resourceID, day, startTime, endTime, startTime).Scan(&hostID)
+		if err != nil {
+			// Utilisation du code d'erreur HTTP 422 (Unprocessable Entity) pour indiquer qu'aucun hôte n'est disponible
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Aucun hôte disponible trouvé : " + err.Error()})
+			return
+		}
+
+		// Insérer le rendez-vous
+		query := `
 		INSERT INTO appointment (host, guest, start_time, end_time, school, title, resource, token) 
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		RETURNING id,
 		(SELECT name FROM school WHERE id = $5)`
 
-	_, err = database.GetConn().Exec(query, hostID, userID, payload.StartTime, endTime, payload.SchoolID, payload.Unique_name, 0, token)
-	if err != nil {
-		http.Error(w, "Échec de l'insertion des données dans la base de données: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
+		_, err = database.GetConn().Exec(query, hostID, userID, payload.StartTime, endTime, payload.SchoolID, payload.Unique_name, resourceID, token)
+		if err != nil {
+			http.Error(w, "Échec de l'insertion des données dans la base de données: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
 
-	// Récupérer le nom de l'école
-	var schoolName string
-	schoolQuery := `
-	SELECT name
-	FROM school
-	WHERE id = $1`
-	err = database.GetConn().QueryRow(schoolQuery, payload.SchoolID).Scan(&schoolName)
-	if err != nil {
-		http.Error(w, "Échec de la requête à la base de données: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
+		// Récupérer le nom de l'école
+		var schoolName string
+		schoolQuery := `
+		SELECT name
+		FROM school
+		WHERE id = $1`
+		err = database.GetConn().QueryRow(schoolQuery, payload.SchoolID).Scan(&schoolName)
+		if err != nil {
+			http.Error(w, "Échec de la requête à la base de données: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
 
-	// Générer le lien unique
-	var emailUrl string
-	if strings.Contains(r.Host, "localhost") {
-		emailUrl = "http://localhost:9000/validate-appointment?"
-	} else {
-		emailUrl = "https://prometheus.hainaut-promsoc.be/validate-appointment?"
-	}
-	fullURL := fmt.Sprintf("%stoken=%s", emailUrl, token)
-	// Corps du mail HTML
+		// Générer le lien unique
+		var emailUrl string
+		if strings.Contains(r.Host, "localhost") {
+			emailUrl = "http://localhost:9000/validate-appointment?"
+		} else {
+			emailUrl = "https://prometheus.hainaut-promsoc.be/validate-appointment?"
+		}
+		fullURL := fmt.Sprintf("%stoken=%s", emailUrl, token)
+		// Corps du mail HTML
 
-	body := fmt.Sprintf(`
+		body := fmt.Sprintf(`
 		<!DOCTYPE html>
 		<html lang="fr">
 		<head>
@@ -333,27 +545,46 @@ func CreateAnonymousAppointment(w http.ResponseWriter, r *http.Request) {
 		</body>
 		</html>
 		`,
-		payload.Unique_name,
-		startTime.Format("02-01-2006"),
-		startTime.Format("15:04"),
-		endTime.Format("15:04"),
-		schoolName,
-		fullURL,
-	)
-	// Titre du mail
-	mailTitle := "Demande de confirmation de rendez-vous"
+			payload.Unique_name,
+			startTime.Format("02-01-2006"),
+			startTime.Format("15:04"),
+			endTime.Format("15:04"),
+			schoolName,
+			fullURL,
+		)
+		// Titre du mail
+		mailTitle := "Demande de confirmation de rendez-vous"
 
-	// Envoi du mail
-	err = SendEmail(config.LoadConfig(), payload.Unique_name, mailTitle, body)
-	if err != nil {
-		http.Error(w, "Échec de l'envoi de l'email : "+err.Error(), http.StatusInternalServerError)
+		// Envoi du mail
+		err = SendEmail(config.LoadConfig(), payload.Unique_name, mailTitle, body)
+		if err != nil {
+			http.Error(w, "Échec de l'envoi de l'email : "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// Répondre avec un statut de succès et les détails du rendez-vous
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"message":          "Rendez-vous anonyme créé et email envoyé avec succès",
+			"unique_name":      payload.Unique_name,
+			"start_time":       startTime.Format("2006-01-02 15:04:05"),
+			"end_time":         endTime.Format("2006-01-02 15:04:05"),
+			"school_name":      schoolName,
+			"school_id":        payload.SchoolID,
+			"token":            token,
+			"confirmation_url": fullURL,
+			"host_id":          hostID,
+			"resource_id":      resourceID,
+			"guest_id":         userID,
+		})
+	} else {
+		// Si l'utilisateur a déjà un rendez-vous, on renvoie une erreur
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Vous avez déjà un rendez-vous en cours. Veuillez contacter le secrétariat pour plus d'informations."})
 		return
 	}
-
-	// Répondre avec un statut de succès
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"message": "Rendez-vous anonyme créé et email envoyé avec succès"})
 }
 
 // Fonction pour exporter le calendrier au format ICS

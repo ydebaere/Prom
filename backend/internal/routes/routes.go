@@ -17,6 +17,15 @@ import (
 func Routes() {
 
 	// Routes non sécurisées
+	// Horaires de rendez-vous anonyme
+	http.HandleFunc("/anonymous-schedules", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		// cfg := config.LoadConfig()
+		service.GetAnonymousAvailableSlots(w, r)
+	})
 	// Prise de rendez-vous anonyme
 	http.HandleFunc("/anonymous-appointment", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -65,7 +74,11 @@ func Routes() {
 	http.HandleFunc("/unavailabilities", middleware.WithJWTMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case "GET":
-			unavailabilities.GetUnavailabilities(w, r)
+			if r.URL.Query().Get("userID") != "" {
+				unavailabilities.GetUnavailabilitiesByUser(w, r)
+			} else {
+				unavailabilities.GetUnavailabilities(w, r)
+			}
 		case "POST":
 			unavailabilities.CreateUnavailability(w, r)
 		case "DELETE":

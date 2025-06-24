@@ -317,7 +317,7 @@
             <q-btn
             flat
             label="Annuler"
-            color="negative"
+            color="primary"
             @click="showAddAgentDialog = false; emailSuggestions = []; newAgentSelection = null"
           />
           <q-btn
