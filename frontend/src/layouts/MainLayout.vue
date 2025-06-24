@@ -158,6 +158,7 @@ export default {
       try {
         await msalInstance.loginRedirect({
           scopes: ["api://a09c54f3-0c53-49d4-b9ef-16eaecdd5b74/Access"],
+          prompt: "login",
         });
       } catch (error) {
         console.error("Azure Login Redirect Error:", error);

@@ -138,7 +138,7 @@ export async function azureLogin() {
 
     const redirectResponse = await msalInstance.handleRedirectPromise();
     if (redirectResponse) {
-      localStorage.setItem("idToken", redirectResponse.account.idToken);
+      localStorage.setItem("idToken", redirectResponse.idToken);
       localStorage.setItem("accessToken", redirectResponse.accessToken);
       localStorage.setItem("token", redirectResponse.accessToken);
       decodeToken();
