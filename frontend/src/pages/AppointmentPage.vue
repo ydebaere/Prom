@@ -534,14 +534,22 @@ async function confirmEmail() {
       showEmailDialog.value = false;
       return;
     }
-
-    $q.notify({
-      type: "positive",
-      message: `Rendez-vous ajouté avec succès n'oubliez pas de le confirmer via l'email recu!`,
-      position: "center",
-    });
-    showEmailDialog.value = false;
-    route.push("/");
+    if (response.status >= 200 && response.status < 300) {
+      $q.notify({
+        type: "positive",
+        message: `Rendez-vous ajouté avec succès n'oubliez pas de le confirmer via l'email recu!`,
+        position: "center",
+      });
+      showEmailDialog.value = false;
+      route.push("/");
+    } else if (response.status === 500) {
+      $q.notify({
+        type: "negative",
+        message: "Erreur serveur lors de l'ajout du rendez-vous anonyme",
+        position: "center",
+      });
+      showEmailDialog.value = false;
+    }
   } catch (error) {
     console.error("Erreur lors de la création du rendez-vous anonyme:", error);
     $q.notify({

@@ -835,7 +835,7 @@ func CreateAppointment(w http.ResponseWriter, r *http.Request) {
 		<body style="font-family: Arial, sans-serif; color: #333; padding: 20px;">
 		<div style="max-width: 600px; margin: auto; border: 1px solid #eee; border-radius: 8px; overflow: hidden; background-color: #fafafa;">
 			<div style="background-color: #26a69a; padding: 10px;">
-			<img src="https://upload.wikimedia.org/wikipedia/commons/2/29/Logo_Province_de_Hainaut.png" alt="Logo Prometheus" style="height: 40px;">
+			<img src="https://raw.githubusercontent.com/ydebaere/Prom/main/assets/Prometheus_logo.png" alt="Logo Prometheus" style="height: 40px;">
 			</div>
 			<div style="padding: 20px;">
 			<h2 style="color: #26a69a;">Demande de confirmation de rendez-vous</h2>
@@ -1081,7 +1081,7 @@ func ConfirmAppointment(w http.ResponseWriter, r *http.Request) {
 		<body style="font-family: Arial, sans-serif; color: #333; padding: 20px;">
 		<div style="max-width: 600px; margin: auto; border: 1px solid #eee; border-radius: 8px; overflow: hidden; background-color: #fafafa;">
 			<div style="background-color: #26a69a; padding: 10px;">
-			<img src="https://upload.wikimedia.org/wikipedia/commons/2/29/Logo_Province_de_Hainaut.png" alt="Logo Prometheus" style="height: 40px;">
+			<img src="https://raw.githubusercontent.com/ydebaere/Prom/main/assets/Prometheus_logo.png" alt="Logo Prometheus" style="height: 40px;">
 			</div>
 			<div style="padding: 20px;">
 				<h2 style="color: #26a69a;">Vous avez un nouveau rendez-vous</h2>

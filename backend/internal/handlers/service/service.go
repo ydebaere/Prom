@@ -357,15 +357,14 @@ func CreateAnonymousAppointment(w http.ResponseWriter, r *http.Request) {
 		}
 		fmt.Printf("DEBUGG : New user created with ID: %d\n", userID)
 
-		schoolId := payload.SchoolID
 		resourceQuery := `
 		SELECT id
 		FROM resource
 		WHERE school = $1 
-		AND name LIKE '%Invité%'
+		AND name ILIKE '%guest%'
 		`
 		var resourceID int
-		err = database.GetConn().QueryRow(resourceQuery, schoolId).Scan(&resourceID)
+		err = database.GetConn().QueryRow(resourceQuery, payload.SchoolID).Scan(&resourceID)
 		if err != nil && err != sql.ErrNoRows {
 			http.Error(w, "Échec de la requête à la base de données: "+err.Error(), http.StatusInternalServerError)
 			return
@@ -520,7 +519,7 @@ func CreateAnonymousAppointment(w http.ResponseWriter, r *http.Request) {
 		<body style="font-family: Arial, sans-serif; color: #333; padding: 20px;">
 		<div style="max-width: 600px; margin: auto; border: 1px solid #eee; border-radius: 8px; overflow: hidden; background-color: #fafafa;">
 			<div style="background-color: #26a69a; padding: 10px;">
-			<img src="https://upload.wikimedia.org/wikipedia/commons/2/29/Logo_Province_de_Hainaut.png" alt="Logo E-Cale" style="height: 40px;">
+			<img src="https://raw.githubusercontent.com/ydebaere/Prom/main/assets/Prometheus_logo.png" alt="Logo E-Cale" style="height: 40px;">
 			</div>
 			<div style="padding: 20px;">
 			<h2 style="color: #26a69a;">Demande de confirmation de rendez-vous</h2>
