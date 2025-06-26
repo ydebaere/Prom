@@ -50,7 +50,12 @@
       class="q-mb-md flex flex-center"
     >
       <!-- Step 3: Sélectionnez une date -->
-      <q-date v-model="date" :options="dateOptions" color="secondary" />
+      <q-date
+        v-model="date"
+        :options="dateOptions"
+        color="secondary"
+        :day-class="getDayClass"
+      />
     </q-card-section>
 
     <!-- Sélection de la ressource et disponibilités -->

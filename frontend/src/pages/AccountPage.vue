@@ -282,7 +282,7 @@
                     />
                     <q-select
                     v-model="editedAppointment.start"
-                    :options="availabilities.length ? availabilities.map(slot => ({ label: `${slot.start} - ${slot.end}`, value: slot.start })) : []"
+                    :options="availabilities.length ? availabilities.map(slot => ({ label: `${slot.start}`, value: slot.start })) : []"
                     label="Plage horaire"
                     outlined
                     dense
@@ -352,14 +352,7 @@ const user = getUser();
 const isMobile = ref(window.innerWidth <= 768);
 const $q = useQuasar();
 const appointments = ref([]);
-const unavailabilities = ref([
-  {
-    label: "Test événement",
-    date: new Date().toISOString().slice(0, 10),
-    start: new Date().toISOString().slice(11, 16),
-    end: new Date(new Date().getTime() + 15 * 60000).toISOString().slice(11, 16),
-  },
-]);
+const unavailabilities = ref([]);
 const columns = [
   {
     name: "date",
@@ -423,15 +416,15 @@ const noAvailabilitiesMessage = ref("");
 async function loadUnavailabilities() {
   try {
     const data = await fetchUserUnavailabilities(user.unique_name);
-    unavailabilities.value = data
+    unavailabilities.value = (data || [])
       .filter(item => item.reason.toLowerCase() !== 'rendez-vous')
       .map((item) => ({
-      id: item.id,
-      label: item.label,
-      date: new Date(item.date).toLocaleDateString('fr-FR'),
-      reason: item.reason,
-      start: item.start_time.slice(11, 16),
-      end: item.end_time.slice(11, 16),
+        id: item.id,
+        label: item.label,
+        date: new Date(item.date).toLocaleDateString('fr-FR'),
+        reason: item.reason,
+        start: item.start_time.slice(11, 16),
+        end: item.end_time.slice(11, 16),
       }));
   } catch (error) {
     console.error("Failed to fetch unavailabilities:", error);
